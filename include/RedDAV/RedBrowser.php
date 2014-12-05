@@ -20,7 +20,7 @@ class RedBrowser extends DAV\Browser\Plugin {
 	/**
 	 * @see set_writeable()
 	 * @see \Sabre\DAV\Auth\Backend\BackendInterface
-	 * @var RedBasicAuth
+	 * @var RedDAV\RedBasicAuth
 	 */
 	private $auth;
 
@@ -33,14 +33,11 @@ class RedBrowser extends DAV\Browser\Plugin {
 	 * @todo disable enablePost by default and only activate if permissions
 	 * grant edit rights.
 	 *
-	 * Disable assets with $enableAssets = false. Should get some thumbnail views
-	 * anyway.
-	 *
 	 * @param RedBasicAuth &$auth
 	 */
 	public function __construct(&$auth) {
 		$this->auth = $auth;
-		parent::__construct(true, false);
+		parent::__construct(true);
 	}
 
 	/**
@@ -104,7 +101,7 @@ class RedBrowser extends DAV\Browser\Plugin {
 			list($parentUri) = DAV\URLUtil::splitPath($path);
 			$fullPath = DAV\URLUtil::encodePath($this->server->getBaseUri() . $parentUri);
 
-			$parentpath['icon'] = $this->enableAssets ? '<a href="' . $fullPath . '"><img src="' . $this->getAssetUrl('icons/parent' . $this->iconExtension) . '" width="24" alt="' . t('parent') . '"></a>' : '';
+			$parentpath['icon'] = '';
 			$parentpath['path'] = $fullPath;
 		}
 
@@ -170,22 +167,10 @@ class RedBrowser extends DAV\Browser\Plugin {
 
 
 			$displayName = isset($file[200]['{DAV:}displayname']) ? $file[200]['{DAV:}displayname'] : $name;
-
 			$displayName = $this->escapeHTML($displayName);
 			$type = $this->escapeHTML($type);
 
 			$icon = '';
-
-			if ($this->enableAssets) {
-				$node = $this->server->tree->getNodeForPath(($path ? $path . '/' : '') . $name);
-				foreach (array_reverse($this->iconMap) as $class=>$iconName) {
-					if ($node instanceof $class) {
-						$icon = '<a href="' . $fullPath . '"><img src="' . $this->getAssetUrl($iconName . $this->iconExtension) . '" alt="" width="24"></a>';
-						break;
-					}
-				}
-			}
-
 			$parentHash = '';
 			$owner = $this->auth->owner_id;
 			$splitPath = split('/', $fullPath);
@@ -244,7 +229,7 @@ class RedBrowser extends DAV\Browser\Plugin {
 
 		$output = '';
 		if ($this->enablePost) {
-			$this->server->broadcastEvent('onHTMLActionsPanel', array($parent, &$output));
+			$this->server->emit('onHTMLActionsPanel', array($parent, &$output));
 		}
 
 		$html .= replace_macros(get_markup_template('cloud.tpl'), array(
@@ -272,7 +257,7 @@ class RedBrowser extends DAV\Browser\Plugin {
 		$a->page['content'] = $html;
 		load_pdl($a);
 
-		$theme_info_file = "view/theme/" . current_theme() . "/php/theme.php";
+		$theme_info_file = 'view/theme/' . current_theme() . '/php/theme.php';
 		if (file_exists($theme_info_file)){
 			require_once($theme_info_file);
 			if (function_exists(str_replace('-', '_', current_theme()) . '_init')) {
