@@ -24,7 +24,12 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 	 * @var string
 	 */
 	private $red_path;
+
+	/**
+	 * @var string
+	 */
 	private $folder_hash;
+
 	/**
 	 * @brief The full path as seen in the browser.
 	 * /cloud + $red_path
@@ -32,8 +37,12 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 	 * @var string
 	 */
 	private $ext_path;
-	private $root_dir = '';
+
+	/**
+	 * @var RedBasicAuth
+	 */
 	private $auth;
+
 	/**
 	 * @brief The real path on the filesystem.
 	 * The actual path in store/ with the hashed names.

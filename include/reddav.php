@@ -12,8 +12,6 @@
  * We need to use SabreDAV 1.8.x for PHP5.3 compatibility. SabreDAV >= 2.0
  * requires PHP >= 5.4.
  *
- * @todo split up the classes into own files.
- *
  * @link http://github.com/friendica/red
  * @license http://opensource.org/licenses/mit-license.php The MIT License (MIT)
  */
@@ -21,11 +19,7 @@
 use Sabre\DAV;
 use RedMatrix\RedDAV;
 
-require_once('vendor/autoload.php');
 require_once('include/attach.php');
-require_once('include/RedDAV/RedFile.php');
-require_once('include/RedDAV/RedDirectory.php');
-require_once('include/RedDAV/RedBasicAuth.php');
 
 /**
  * @brief Returns an array with viewable channels.

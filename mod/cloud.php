@@ -9,9 +9,6 @@
 use Sabre\DAV;
 use RedMatrix\RedDAV;
 
-// composer autoloader for SabreDAV
-require_once('vendor/autoload.php');
-
 // workaround for HTTP-auth in CGI mode
 if (x($_SERVER, 'REDIRECT_REMOTE_USER')) {
  	$userpass = base64_decode(substr($_SERVER["REDIRECT_REMOTE_USER"], 6)) ;
@@ -47,8 +44,6 @@ function cloud_init(&$a) {
 		$which = argv(1);
 
 	$profile = 0;
-
-	$a->page['htmlhead'] .= '<link rel="alternate" type="application/atom+xml" href="' . $a->get_baseurl() . '/feed/' . $which . '" />' . "\r\n";
 
 	if ($which)
 		profile_load($a, $which, $profile);
@@ -120,20 +115,22 @@ function cloud_init(&$a) {
 			$auth->Authenticate($server, t('RedMatrix - Guests: Username: {your email address}, Password: +++'));
 		}
 		catch (Exception $e) {
-			logger('mod_cloud: auth exception' . $e->getMessage());
+			logger('auth exception: ' .$e->getMessage());
 			http_status_exit($e->getHTTPCode(), $e->getMessage());
 		}
 	}
 
-	require_once('include/RedDAV/RedBrowser.php');
-	// provide a directory view for the cloud in Red Matrix
+	// provide a directory view for the cloud in RedMatrix
 	$browser = new RedDAV\RedBrowser($auth);
 	$auth->setBrowserPlugin($browser);
 
 	$server->addPlugin($browser);
 
+	// Temporary file filter
+	$tmpFilesFilter = new \Sabre\DAV\TemporaryFileFilterPlugin('store/[data]/tmpfiles');
+	$server->addPlugin($tmpFilesFilter);
+
 	// Experimental QuotaPlugin
-//	require_once('include/RedDAV/QuotaPlugin.php');
 //	$server->addPlugin(new RedDAV\QuotaPlugin($auth));
 
 	// All we need to do now, is to fire up the server
