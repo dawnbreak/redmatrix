@@ -2,7 +2,9 @@
 
 namespace RedMatrix\RedDAV;
 
-use Sabre\DAV;
+use Sabre\DAV,
+    Sabre\HTTP\RequestInterface,
+    Sabre\HTTP\ResponseInterface;
 
 /**
  * @brief Provides a DAV frontend for the webbrowser.
@@ -18,7 +20,6 @@ use Sabre\DAV;
 class RedBrowser extends DAV\Browser\Plugin {
 
 	/**
-	 * @see set_writeable()
 	 * @see \Sabre\DAV\Auth\Backend\BackendInterface
 	 * @var RedDAV\RedBasicAuth
 	 */
@@ -41,28 +42,134 @@ class RedBrowser extends DAV\Browser\Plugin {
 	}
 
 	/**
-	 * The DAV browser is instantiated after the auth module and directory classes
-	 * but before we know the current directory and who the owner and observer
-	 * are. So we add a pointer to the browser into the auth module and vice versa.
-	 * Then when we've figured out what directory is actually being accessed, we
-	 * call the following function to decide whether or not to show web elements
-	 * which include writeable objects.
-	 *
-	 * @fixme It only disable/enable the visible parts. Not the POST handler
-	 * which handels the actual requests when uploading files or creating folders.
-	 *
-	 * @todo Maybe this whole way of doing this can be solved with some
-	 * $server->subscribeEvent().
+	 * Extended from parent to add our own listeners.
 	 */
-	public function set_writeable() {
-		if (! $this->auth->owner_id) {
-			$this->enablePost = false;
-		}
+	function initialize(DAV\Server $server) {
+		parent::initialize($server);
 
-		if (! perm_is_allowed($this->auth->owner_id, get_observer_hash(), 'write_storage')) {
-			$this->enablePost = false;
-		} else {
-			$this->enablePost = true;
+		/** @todo test if this is working here */
+		$which = null;
+		if (argc() > 1)
+			$which = argv(1);
+
+		$a = get_app();
+		$profile = 0;
+		if ($which)
+			profile_load($a, $which, $profile);
+
+		$this->server->on('beforeMethod',        [$this, 'redBeforeMethod'], 10);
+		$this->auth->log();
+	}
+
+	/**
+	 * @brief Triggered before any method is handled to check permissions.
+	 *
+	 * This is also used to set the current owner_.
+	 *
+	 * Taken from DAVACL, when we implement principals for Card/CalDAV we can
+	 * maybe implement full DAVACL support and move this there.
+	 * @fixme This class RedBrowser is also really the wrong place for this method!
+	 *
+	 * @param RequestInterface $request
+	 * @param ResponseInterface $response
+	 * @return void
+	 */
+	function redBeforeMethod(RequestInterface $request, ResponseInterface $response) {
+		$method = $request->getMethod();
+		$path = $request->getPath();
+
+		$exists = $this->server->tree->nodeExists($path);
+
+		// If the node doesn't exists, none of these checks apply
+		if (!$exists) return;
+
+		switch($method) {
+
+			case 'POST' :
+logger("POST: " . $path);
+			case 'GET' :
+			case 'HEAD' :
+			case 'OPTIONS' :
+				// For these 3 we only need to know if the node is readable.
+				//$this->checkPrivileges($path,'{DAV:}read');
+				logger('GET/HEAD/OPTIONS');
+
+				// set owner_ in RedBasicAuth
+				$file = $path;
+				$x = strpos($file, 'cloud');
+				if ($x === false)
+					return;
+				if ($x === 0) {
+					$file = substr($file, 5);
+				}
+				if ((! $file) || ($file === '/')) {
+					return;
+				}
+				$file = trim($file, '/');
+				$path_arr = explode('/', $file);
+
+				if (! $path_arr)
+					return;
+
+				$channel_name = $path_arr[0];
+
+				$r = q("SELECT channel_id FROM channel WHERE channel_address = '%s' AND NOT ( channel_pageflags & %d )>0 LIMIT 1",
+					dbesc($channel_name),
+					intval(PAGE_REMOVED)
+				);
+
+				if (! $r) {
+					throw new DAV\Exception\NotFound('The channel: ' . $channel_name . ' could not be found.');
+				}
+				$this->auth->owner_id = $r[0]['channel_id'];
+				$this->auth->owner_nick = $channel_name;
+
+
+				// set enablePost, @TODO check event for this
+				if (! $this->auth->owner_id) {
+					$this->enablePost = false;
+				}
+
+				if (! perm_is_allowed($this->auth->owner_id, get_observer_hash(), 'write_storage')) {
+					$this->enablePost = false;
+				} else {
+					$this->enablePost = true;
+				}
+				break;
+
+			case 'PUT' :
+			case 'LOCK' :
+			case 'UNLOCK' :
+				// This method requires the write-content priv if the node
+				// already exists, and bind on the parent if the node is being
+				// created.
+				// The bind privilege is handled in the beforeBind event.
+				//$this->checkPrivileges($path,'{DAV:}write-content');
+				logger('PUT/LOCK/UNLOCK');
+				break;
+
+			case 'PROPPATCH' :
+				//$this->checkPrivileges($path,'{DAV:}write-properties');
+				logger('PROPPATCH');
+				break;
+
+			case 'COPY' :
+			case 'MOVE' :
+				// Copy requires read privileges on the entire source tree.
+				// If the target exists write-content normally needs to be
+				// checked, however, we're deleting the node beforehand and
+				// creating a new one after, so this is handled by the
+				// beforeUnbind event.
+				//
+				// The creation of the new node is handled by the beforeBind
+				// event.
+				//
+				// If MOVE is used beforeUnbind will also be used to check if
+				// the sourcenode can be deleted.
+				//$this->checkPrivileges($path,'{DAV:}read',self::R_RECURSIVE);
+				logger('COPY/MOVE');
+
+				break;
 		}
 	}
 
@@ -96,7 +203,7 @@ class RedBrowser extends DAV\Browser\Plugin {
 		$parent = $this->server->tree->getNodeForPath($path);
 
 		$parentpath = array();
-		// only show parent if not leaving /cloud/; TODO how to improve this? 
+		// only show parent if not leaving /cloud/; TODO how to improve this?
 		if ($path && $path != "cloud") {
 			list($parentUri) = DAV\URLUtil::splitPath($path);
 			$fullPath = DAV\URLUtil::encodePath($this->server->getBaseUri() . $parentUri);
@@ -310,7 +417,7 @@ class RedBrowser extends DAV\Browser\Plugin {
 	 *
 	 * Given the owner, the parent folder and and attach name get the attachment
 	 * hash.
-	 * 
+	 *
 	 * @param int $owner
 	 *  The owner_id
 	 * @param string $hash

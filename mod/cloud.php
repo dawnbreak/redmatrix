@@ -39,15 +39,6 @@ function cloud_init(&$a) {
 	if (! is_dir('store'))
 		os_mkdir('store', STORAGE_DEFAULT_PERMISSIONS, false);
 
-	$which = null;
-	if (argc() > 1)
-		$which = argv(1);
-
-	$profile = 0;
-
-	if ($which)
-		profile_load($a, $which, $profile);
-
 	$auth = new RedDAV\RedBasicAuth();
 
 	$ob_hash = get_observer_hash();
@@ -57,7 +48,6 @@ function cloud_init(&$a) {
 			$channel = $a->get_channel();
 			$auth->setCurrentUser($channel['channel_address']);
 			$auth->channel_id = $channel['channel_id'];
-			$auth->channel_hash = $channel['channel_hash'];
 			$auth->channel_account_id = $channel['channel_account_id'];
 			if($channel['channel_timezone'])
 				$auth->setTimezone($channel['channel_timezone']);
@@ -122,7 +112,6 @@ function cloud_init(&$a) {
 
 	// provide a directory view for the cloud in RedMatrix
 	$browser = new RedDAV\RedBrowser($auth);
-	$auth->setBrowserPlugin($browser);
 
 	$server->addPlugin($browser);
 
