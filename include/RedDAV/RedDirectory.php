@@ -17,13 +17,10 @@ use Sabre\DAV;
  * @license http://opensource.org/licenses/mit-license.php The MIT License (MIT)
  */
 class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
-
 	/**
-	 * @brief The path inside /cloud
-	 *
-	 * @var string
+	 * @var RedBasicAuth
 	 */
-	private $red_path;
+	private $auth;
 
 	/**
 	 * @var string
@@ -31,20 +28,25 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 	private $folder_hash;
 
 	/**
+	 * @brief The path inside /cloud.
+	 *
+	 * @var string
+	 */
+	private $red_path;
+
+	/**
 	 * @brief The full path as seen in the browser.
+	 *
 	 * /cloud + $red_path
+	 *
 	 * @todo I think this is not used anywhere, we always strip '/cloud' and only use it in debug
 	 * @var string
 	 */
 	private $ext_path;
 
 	/**
-	 * @var RedBasicAuth
-	 */
-	private $auth;
-
-	/**
-	 * @brief The real path on the filesystem.
+	 * @brief The real path in the filesystem.
+	 *
 	 * The actual path in store/ with the hashed names.
 	 *
 	 * @var string
@@ -55,11 +57,11 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 	 * @brief Sets up the directory node, expects a full path.
 	 *
 	 * @param string $ext_path a full path
-	 * @param RedBasicAuth &$auth_plugin
+	 * @param RedBasicAuth $auth_plugin
 	 */
-	public function __construct($ext_path, &$auth_plugin) {
-//		$ext_path = urldecode($ext_path);
+	public function __construct($ext_path, $auth_plugin) {
 		//logger('directory ' . $ext_path, LOGGER_DATA);
+		$this->auth = $auth_plugin;
 		$this->ext_path = $ext_path;
 		// remove "/cloud" from the beginning of the path
 		$modulename = get_app()->module; 
@@ -67,13 +69,8 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 		if (! $this->red_path) {
 			$this->red_path = '/';
 		}
-		$this->auth = $auth_plugin;
 		$this->folder_hash = '';
 		$this->getDir();
-
-		if ($this->auth->browser) {
-			$this->auth->browser->set_writeable();
-		}
 	}
 
 	private function log() {

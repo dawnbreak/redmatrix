@@ -18,51 +18,62 @@ use Sabre\DAV;
 class RedBasicAuth extends DAV\Auth\Backend\AbstractBasic {
 
 	/**
-	 * @brief This variable holds the currently logged-in channel_address.
+	 * @brief The channel_address of the currently locally logged-in channel.
 	 *
-	 * It is used for building path in filestorage/.
+	 * This variable can be retrieved and manipulated with the methods getCurrentUser()
+	 * and setCurrentUser().
+	 *
+	 * @TODO Need to clean this up and change some names. We should have channel_,
+	 * owner_* and observer_*. channel is locally authenticated, owner is where
+	 * assets are located and which channel they are associated with, observer is
+	 * who is viewing or accessing an asset.
 	 *
 	 * @var string|null
 	 */
 	protected $channel_name = null;
 	/**
-	 * channel_id of the current channel of the logged-in account.
+	 * @brief The currently locally logged-in channel's channel_id.
 	 *
 	 * @var int
 	 */
 	public $channel_id = 0;
 	/**
-	 * channel_hash of the current channel of the logged-in account.
+	 * @brief The currently locally logged-in channel's account_id.
 	 *
-	 * @var string
+	 * Used for calculating storage limits per account.
+	 *
+	 * @var int
 	 */
-	public $channel_hash = '';
+	public $channel_account_id = null;
+
 	/**
+	 * @brief The channel_hash of the current visiting channel (observer).
+	 *
 	 * Set in mod/cloud.php to observer_hash.
 	 *
 	 * @var string
 	 */
 	public $observer = '';
+
 	/**
+	 * @brief The channel_id of the currently visited path.
 	 *
-	 * @see RedBrowser::set_writeable()
-	 * @var \Sabre\DAV\Browser\Plugin
-	 */
-	public $browser;
-	/**
-	 * channel_id of the current visited path. Set in RedDirectory::getDir().
+	 * Set in RedDirectory::getDir().
 	 *
 	 * @var int
 	 */
 	public $owner_id = 0;
 	/**
-	 * channel_name of the current visited path. Set in RedDirectory::getDir().
+	 * @brief The channel_address of the currently visited path.
+	 *
+	 * Set in RedDirectory::getDir().
 	 *
 	 * Used for creating the path in cloud/
 	 *
 	 * @var string
 	 */
 	public $owner_nick = '';
+
 	/**
 	 * Timezone from the visiting channel's channel_timezone.
 	 *
@@ -71,7 +82,6 @@ class RedBasicAuth extends DAV\Auth\Backend\AbstractBasic {
 	 * @var string
 	 */
 	protected $timezone = '';
-
 
 	/**
 	 * @brief Validates a username and password.
@@ -108,13 +118,11 @@ class RedBasicAuth extends DAV\Auth\Backend\AbstractBasic {
 				intval($r[0]['channel_account_id'])
 			);
 			if ($x) {
-				// @fixme this foreach should not be needed?
-				foreach ($x as $record) {
-					if (($record['account_flags'] == ACCOUNT_OK) || ($record['account_flags'] == ACCOUNT_UNVERIFIED)
-					&& (hash('whirlpool', $record['account_salt'] . $password) === $record['account_password'])) {
-						logger('password verified for ' . $username);
-						return $this->setAuthenticated($r[0]);
-					}
+				$record = $x[0];
+				if (($record['account_flags'] == ACCOUNT_OK) || ($record['account_flags'] == ACCOUNT_UNVERIFIED)
+				&& (hash('whirlpool', $record['account_salt'] . $password) === $record['account_password'])) {
+					logger('password verified for ' . $username);
+					return $this->setAuthenticated($r[0]);
 				}
 			}
 		}
@@ -134,9 +142,10 @@ class RedBasicAuth extends DAV\Auth\Backend\AbstractBasic {
 	 * @return bool
 	 */
 	protected function setAuthenticated($r) {
-		$this->channel_name = $r['channel_address'];
+		$this->setCurrentUser($r['channel_address']);
 		$this->channel_id = $r['channel_id'];
-		$this->channel_hash = $this->observer = $r['channel_hash'];
+		$this->observer = $r['channel_hash'];
+		$this->channel_account_id = $r['channel_account_id'];
 		$_SESSION['uid'] = $r['channel_id'];
 		$_SESSION['account_id'] = $r['channel_account_id'];
 		$_SESSION['authenticated'] = true;
@@ -144,21 +153,22 @@ class RedBasicAuth extends DAV\Auth\Backend\AbstractBasic {
 	}
 
 	/**
-	 * Sets the channel_name from the currently logged-in channel.
+	 * @brief Sets the channel_name from the currently locally logged-in channel.
 	 *
-	 * @param string $name
-	 *  The channel's name
+	 * This is the channel_address which is visible in URLs.
+	 *
+	 * @param string $name The channel_address of the current channel
 	 */
 	public function setCurrentUser($name) {
 		$this->channel_name = $name;
 	}
 	/**
-	 * Returns information about the currently logged-in channel.
+	 * @brief Returns information about the currently locally logged-in channel.
 	 *
 	 * If nobody is currently logged in, this method should return null.
 	 *
 	 * @see \Sabre\DAV\Auth\Backend\AbstractBasic::getCurrentUser
-	 * @return string|null
+	 * @return string|null the current channel's channel_address
 	 */
 	public function getCurrentUser() {
 		return $this->channel_name;
@@ -187,16 +197,6 @@ class RedBasicAuth extends DAV\Auth\Backend\AbstractBasic {
 	}
 
 	/**
-	 * @brief Set browser plugin for SabreDAV.
-	 *
-	 * @see RedBrowser::set_writeable()
-	 * @param \Sabre\DAV\Browser\Plugin $browser
-	 */
-	public function setBrowserPlugin($browser) {
-		$this->browser = $browser;
-	}
-
-	/**
 	 * @brief Prints out all RedBasicAuth variables to logger().
 	 *
 	 * @return void
@@ -204,8 +204,8 @@ class RedBasicAuth extends DAV\Auth\Backend\AbstractBasic {
 	public function log() {
 		logger('channel_name ' . $this->channel_name, LOGGER_DATA);
 		logger('channel_id ' . $this->channel_id, LOGGER_DATA);
-		logger('channel_hash ' . $this->channel_hash, LOGGER_DATA);
 		logger('observer ' . $this->observer, LOGGER_DATA);
+		logger('channel_account_id ' . $this->channel_account_id, LOGGER_DATA);
 		logger('owner_id ' . $this->owner_id, LOGGER_DATA);
 		logger('owner_nick ' . $this->owner_nick, LOGGER_DATA);
 	}
