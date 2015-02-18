@@ -83,32 +83,6 @@ function filestorage_content(&$a) {
 		return;
 	}
 
-	if(argc() > 3 && argv(3) === 'delete') {
-		if(! $perms['write_storage']) {
-			notice( t('Permission denied.') . EOL);
-			return;
-		}
-
-		$file = intval(argv(2));
-		$r = q("SELECT hash FROM attach WHERE id = %d AND uid = %d LIMIT 1",
-			dbesc($file),
-			intval($owner)
-		);
-		if(! $r) {
-			notice( t('File not found.') . EOL);
-			goaway(z_root() . '/cloud/' . $which);
-		}
-
-		$f = $r[0];
-		$channel = $a->get_channel();
-
-		$parentpath = get_parent_cloudpath($channel['channel_id'], $channel['channel_address'], $f['hash']);
-
-		attach_delete($owner, $f['hash']);
-
-		goaway($parentpath);
-	}
-
 	if(argc() > 3 && argv(3) === 'edit') {
 		require_once('include/acl_selectors.php');
 		if(! $perms['write_storage']) {
