@@ -12,5 +12,10 @@
 	<div class="clear"></div>
 </div>
 {{if $actionspanel}}
+	<form id="form_delete" method="post" action="">
+		<input type="hidden" name="sabreAction" value="del">
+		<input type="hidden" name="channel" value="{{$channel}}">
+		<input type="hidden" name="form_security_token" value="{{$sectoken}}">
+	</form>
 	{{$actionspanel}}
 {{/if}}
