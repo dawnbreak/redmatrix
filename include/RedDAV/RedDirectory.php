@@ -35,16 +35,6 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 	private $red_path;
 
 	/**
-	 * @brief The full path as seen in the browser.
-	 *
-	 * /cloud + $red_path
-	 *
-	 * @todo I think this is not used anywhere, we always strip '/cloud' and only use it in debug
-	 * @var string
-	 */
-	private $ext_path;
-
-	/**
 	 * @brief The real path in the filesystem.
 	 *
 	 * The actual path in store/ with the hashed names.
@@ -62,7 +52,6 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 	public function __construct($ext_path, $auth_plugin) {
 		//logger('directory ' . $ext_path, LOGGER_DATA);
 		$this->auth = $auth_plugin;
-		$this->ext_path = $ext_path;
 		// remove "/cloud" from the beginning of the path
 		$modulename = get_app()->module; 
 		$this->red_path = ((strpos($ext_path, '/' . $modulename) === 0) ? substr($ext_path, strlen($modulename) + 1) : $ext_path);
@@ -74,9 +63,9 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 	}
 
 	private function log() {
-		logger('ext_path ' . $this->ext_path, LOGGER_DATA);
-		logger('os_path  ' . $this->os_path, LOGGER_DATA);
-		logger('red_path ' . $this->red_path, LOGGER_DATA);
+		//logger('folder_hash ' . $this->folder_hash, LOGGER_DATA);
+		logger('os_path     ' . $this->os_path, LOGGER_DATA);
+		logger('red_path    ' . $this->red_path, LOGGER_DATA);
 	}
 
 	/**
@@ -86,7 +75,7 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 	 * @return array \Sabre\DAV\INode[]
 	 */
 	public function getChildren() {
-		//logger('children for ' . $this->ext_path, LOGGER_DATA);
+		//logger('children for ' . $this->red_path, LOGGER_DATA);
 		$this->log();
 
 		if (get_config('system', 'block_public') && (! $this->auth->channel_id) && (! $this->auth->observer)) {
@@ -122,10 +111,11 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 
 		$modulename = get_app()->module;
 		if ($this->red_path === '/' && $name === $modulename) {
-			return new RedDirectory('/' . $modulename, $this->auth);
+			//logger('We are at the storage root of the module: ' . $modulename);
+			return new RedDirectory('/', $this->auth);
 		}
 
-		$x = RedFileData($this->ext_path . '/' . $name, $this->auth);
+		$x = RedFileData($this->red_path . '/' . $name, $this->auth);
 		if ($x) {
 			return $x;
 		}
@@ -323,15 +313,14 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 	 * @return boolean
 	 */
 	public function childExists($name) {
-		// On /cloud we show a list of available channels.
-		// @todo what happens if no channels are available?
+		// On storage root of module. We show a list of available channels, so child exists.
 		$modulename = get_app()->module;
 		if ($this->red_path === '/' && $name === $modulename) {
-			//logger('We are at ' $modulename . ' show a channel list', LOGGER_DEBUG);
+			logger('We are at the storage root of ' . $modulename . ' showing a channel list', LOGGER_DEBUG);
 			return true;
 		}
 
-		$x = RedFileData($this->ext_path . '/' . $name, $this->auth, true);
+		$x = RedFileData($this->red_path . '/' . $name, $this->auth, true);
 		//logger('RedFileData returns: ' . print_r($x, true), LOGGER_DATA);
 		if ($x)
 			return true;
@@ -346,18 +335,10 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 	 * @return void
 	 */
 	function getDir() {
-		//logger($this->ext_path, LOGGER_DEBUG);
+		//logger($this->red_path, LOGGER_DEBUG);
 		$this->auth->log();
-		$modulename = get_app()->module;
 
-		$file = $this->ext_path;
-
-		$x = strpos($file, '/' . $modulename);
-		if ($x === false)
-			return;
-		if ($x === 0) {
-			$file = substr($file, strlen($modulename) + 1);
-		}
+		$file = $this->red_path;
 
 		if ((! $file) || ($file === '/')) {
 			return;
@@ -379,7 +360,7 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 		);
 
 		if (! $r) {
-			throw new DAV\Exception\NotFound('The file with name: ' . $channel_name . ' could not be found.');
+			throw new DAV\Exception\NotFound('The channel with name: ' . $channel_name . ' could not be found.');
 		}
 
 		$channel_id = $r[0]['channel_id'];
@@ -391,7 +372,7 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 		$os_path = '';
 
 		for ($x = 1; $x < count($path_arr); $x++) {
-			$r = q("select id, hash, filename, flags from attach where folder = '%s' and filename = '%s' and uid = %d and (flags & %d)>0",
+			$r = q("SELECT id, hash, filename, flags FROM attach WHERE folder = '%s' AND filename = '%s' AND uid = %d AND (flags & %d)>0",
 				dbesc($folder),
 				dbesc($path_arr[$x]),
 				intval($channel_id),

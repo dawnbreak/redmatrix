@@ -44,9 +44,8 @@ function RedChannelList(&$auth) {
 	if ($r) {
 		foreach ($r as $rr) {
 			if (perm_is_allowed($rr['channel_id'], $auth->observer, 'view_storage')) {
-				logger('found channel: /cloud/' . $rr['channel_address'], LOGGER_DATA);
-				// @todo can't we drop '/cloud'? It gets stripped off anyway in RedDirectory
-				$ret[] = new RedDAV\RedDirectory('/cloud/' . $rr['channel_address'], $auth);
+				logger('Found storage for channel: ' . $rr['channel_address'], LOGGER_DATA);
+				$ret[] = new RedDAV\RedDirectory($rr['channel_address'], $auth);
 			}
 		}
 	}
@@ -72,6 +71,7 @@ function RedChannelList(&$auth) {
 function RedCollectionData($file, &$auth) {
 	$ret = array();
 
+	// @todo we can get rid of this
 	$x = strpos($file, '/cloud');
 	if ($x === 0) {
 		$file = substr($file, 6);
@@ -100,6 +100,7 @@ function RedCollectionData($file, &$auth) {
 	$channel_id = $r[0]['channel_id'];
 	$perms = permissions_sql($channel_id);
 
+	// @todo what? and why here?
 	$auth->owner_id = $channel_id;
 
 	$path = '/' . $channel_name;
@@ -164,10 +165,9 @@ function RedCollectionData($file, &$auth) {
 	foreach ($r as $rr) {
 		//logger('filename: ' . $rr['filename'], LOGGER_DEBUG);
 		if ($rr['flags'] & ATTACH_FLAG_DIR) {
-			// @todo can't we drop '/cloud'? it gets stripped off anyway in RedDirectory
-			$ret[] = new RedDAV\RedDirectory('/cloud' . $path . '/' . $rr['filename'], $auth);
+			$ret[] = new RedDAV\RedDirectory($path . '/' . $rr['filename'], $auth);
 		} else {
-			$ret[] = new RedDAV\RedFile('/cloud' . $path . '/' . $rr['filename'], $rr, $auth);
+			$ret[] = new RedDAV\RedFile($rr['filename'], $rr, $auth);
 		}
 	}
 
@@ -189,11 +189,6 @@ function RedCollectionData($file, &$auth) {
  */
 function RedFileData($file, &$auth, $test = false) {
 	logger($file . (($test) ? ' (test mode) ' : ''), LOGGER_DATA);
-
-	$x = strpos($file, '/cloud');
-	if ($x === 0) {
-		$file = substr($file, 6);
-	}
 
 	if ((! $file) || ($file === '/')) {
 		return new RedDAV\RedDirectory('/', $auth);
@@ -219,6 +214,7 @@ function RedFileData($file, &$auth, $test = false) {
 
 	$path = '/' . $channel_name;
 
+	// @todo what? and why here?
 	$auth->owner_id = $channel_id;
 
 	$permission_error = false;
@@ -267,7 +263,7 @@ function RedFileData($file, &$auth, $test = false) {
 		if ($test)
 			return true;
 		// final component was a directory.
-		return new RedDAV\RedDirectory('/cloud/' . $file, $auth);
+		return new RedDAV\RedDirectory('/' . $file, $auth);
 	}
 
 	if ($errors) {
@@ -286,10 +282,9 @@ function RedFileData($file, &$auth, $test = false) {
 			return true;
 
 		if ($r[0]['flags'] & ATTACH_FLAG_DIR) {
-			// @todo can't we drop '/cloud'? it gets stripped off anyway in RedDirectory
-			return new RedDAV\RedDirectory('/cloud' . $path . '/' . $r[0]['filename'], $auth);
+			return new RedDAV\RedDirectory($path . '/' . $r[0]['filename'], $auth);
 		} else {
-			return new RedDAV\RedFile('/cloud' . $path . '/' . $r[0]['filename'], $r[0], $auth);
+			return new RedDAV\RedFile($r[0]['filename'], $r[0], $auth);
 		}
 	}
 	return false;
