@@ -6,8 +6,9 @@
  * Module for accessing the DAV storage area.
  */
 
-use Sabre\DAV;
-use RedMatrix\RedDAV;
+use Sabre\DAV,
+    Sabre\DAVACL,
+    RedMatrix\RedDAV;
 
 // workaround for HTTP-auth in CGI mode
 if (x($_SERVER, 'REDIRECT_REMOTE_USER')) {
@@ -66,14 +67,37 @@ function cloud_init(&$a) {
 	$_SERVER['REQUEST_URI'] = strip_zids($_SERVER['REQUEST_URI']);
 	$_SERVER['REQUEST_URI'] = preg_replace('/[\?&]davguest=(.*?)([\?&]|$)/ism', '', $_SERVER['REQUEST_URI']);
 
-	$rootDirectory = new RedDAV\RedDirectory('/', $auth);
+	// principal backend for DAVACL
+	$principalBackend = new RedDAV\RedPrincipalBackend();
+
+	/**
+	 * Basically this is an array which contains the 'top-level' directories in
+	 * the WebDAV server. Don't think /cloud is the right place for this.
+	 */
+	$nodes = [
+		// /principals
+		new DAV\SimpleCollection('principals', [
+			new DAVACL\PrincipalCollection($principalBackend, 'principals/channels'),
+			new DAVACL\PrincipalCollection($principalBackend, 'principals/collections'),
+		]),
+		// /webdav root
+		new RedDAV\RedChannelsCollection($auth),
+		// /calendars if we want to put it all under the same path, otherwise we need a new module
+		//new DAV\SimpleCollection('calendars', [
+		//	new RedDAV\RedCalendarRoot($principalBackend, $caldavBackend, 'principals/channels'),
+		//	new RedDAV\RedCalendarRoot($principalBackend, $caldavBackend, 'principals/collections'),
+		//]),
+		// /photo webdav with photo collection
+		//new RedDAV\RedPhotoCollection(),
+	];
 
 	// A SabreDAV server-object
-	$server = new DAV\Server($rootDirectory);
+	//$server = new DAV\Server($nodes);
+	$server = new DAV\Server(new RedDAV\RedChannelsCollection($auth));
+
 	// prevent overwriting changes each other with a lock backend
 	$lockBackend = new DAV\Locks\Backend\File('store/[data]/locks');
 	$lockPlugin = new DAV\Locks\Plugin($lockBackend);
-
 	$server->addPlugin($lockPlugin);
 
 	// The next section of code allows us to bypass prompting for http-auth if a
@@ -121,6 +145,8 @@ function cloud_init(&$a) {
 
 	// Experimental QuotaPlugin
 //	$server->addPlugin(new RedDAV\QuotaPlugin($auth));
+
+	$server->setBaseUri('/cloud');
 
 	// All we need to do now, is to fire up the server
 	$server->exec();
