@@ -3,22 +3,24 @@
 namespace RedMatrix\RedDAV;
 
 use Sabre\DAV;
+use Sabre\DAVACL;
+use Sabre\HTTP\URLUtil;
+use RedMatrix\RedDAV\RedBasicAuth as RedAuth;
+use RedMatrix\RedDAV;
 
 /**
- * @brief RedDirectory class.
+ * @brief This class represents a directory node in DAV.
  *
  * A class that represents a directory.
  *
- * @extends \Sabre\DAV\Node
- * @implements \Sabre\DAV\ICollection
- * @implements \Sabre\DAV\IQuota
- *
- * @link http://github.com/friendica/red
  * @license http://opensource.org/licenses/mit-license.php The MIT License (MIT)
  */
-class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
+class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota /*, DAVACL\IACL */ {
+
+	use ACLTrait;
+
 	/**
-	 * @var RedBasicAuth
+	 * @var RedDAV\RedBasicAuth
 	 */
 	private $auth;
 
@@ -47,74 +49,172 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 	 * @brief Sets up the directory node, expects a full path.
 	 *
 	 * @param string $ext_path a full path
-	 * @param RedBasicAuth $auth_plugin
+	 * @param RedDAV\RedBasicAuth $auth
+	 * @throws "\Sabre\DAV\Exception\Forbidden"
+	 * @throws "\Sabre\DAV\Exception\NotFound"
 	 */
-	public function __construct($ext_path, $auth_plugin) {
-		//logger('directory ' . $ext_path, LOGGER_DATA);
-		$this->auth = $auth_plugin;
-		// remove "/cloud" from the beginning of the path
-		$modulename = get_app()->module; 
-		$this->red_path = ((strpos($ext_path, '/' . $modulename) === 0) ? substr($ext_path, strlen($modulename) + 1) : $ext_path);
+	public function __construct($ext_path, RedAuth $auth) {
+		logger('Directory ' . $ext_path, LOGGER_DATA);
+		$this->auth = $auth;
+
+		$this->red_path = $ext_path;
 		if (! $this->red_path) {
 			$this->red_path = '/';
 		}
-		$this->folder_hash = '';
+
+		// DAVACL
 		$this->owner = 'principals/channels/' . $this->auth->owner_hash;
 
-		$this->getDir();
+		$file = trim($this->red_path, '/');
+		$path_arr = explode('/', $file);
+
+		if (! $path_arr)
+			return;
+
+		$folder = '';
+		$os_path = '';
+		$errors = false;
+		$permission_error = false;
+
+		$perms = permissions_sql($this->auth->owner_id);
+		for ($x = 1; $x < count($path_arr); $x++) {
+			$r = q("SELECT id, hash, filename, flags FROM attach WHERE folder = '%s' AND filename = '%s' AND uid = %d AND (flags & %d)>0 $perms LIMIT 1",
+					dbesc($folder),
+					dbesc($path_arr[$x]),
+					intval($this->auth->owner_id),
+					intval(ATTACH_FLAG_DIR)
+			);
+			if (! $r) {
+				// path wasn't found. Try without permissions to see if it was the result of permissions.
+				$errors = true;
+				$r = q("SELECT id, hash, filename, flags FROM attach WHERE folder = '%s' AND filename = '%s' AND uid = %d AND (flags & %d)>0 LIMIT 1",
+						dbesc($folder),
+						basename($path_arr[$x]),
+						intval($this->auth->owner_id),
+						intval(ATTACH_FLAG_DIR)
+				);
+				if ($r) {
+					$permission_error = true;
+				}
+				break;
+			}
+
+			if ($r && ($r[0]['flags'] & ATTACH_FLAG_DIR)) {
+				$folder = $r[0]['hash'];
+
+				if (strlen($os_path))
+					$os_path .= '/';
+
+				$os_path .= $folder;
+			}
+		}
+
+		if ($errors) {
+			if ($permission_error) {
+				throw new DAV\Exception\Forbidden('Permission denied.');
+			} else {
+				throw new DAV\Exception\NotFound('A component of the request path ' . $file . ' could not be found.');
+			}
+		}
+
+		// set this object's values
+		$this->folder_hash = $folder;
+		$this->os_path = $os_path;
+
+		$this->log();
 	}
 
+	/**
+	 * @brief Logging function for this objects values.
+	 */
 	private function log() {
 		//logger('folder_hash ' . $this->folder_hash, LOGGER_DATA);
-		logger('os_path     ' . $this->os_path, LOGGER_DATA);
-		logger('red_path    ' . $this->red_path, LOGGER_DATA);
+		logger('os_path  ' . $this->os_path, LOGGER_DATA);
+		logger('red_path ' . $this->red_path, LOGGER_DATA);
+		// DAV principal, owning channel, not metadata owner who created the file
+		logger('owner    ' . $this->owner, LOGGER_DATA);
+
+		//$this->auth->log();
 	}
 
 	/**
 	 * @brief Returns an array with all the child nodes.
 	 *
-	 * @throw \Sabre\DAV\Exception\Forbidden
-	 * @return array \Sabre\DAV\INode[]
+	 * Array with all RedDirectory and RedFile Sabre\\DAV\\Node items for the
+	 * given path.
+	 *
+	 * @throw "\Sabre\DAV\Exception\Forbidden"
+	 * @return array \\Sabre\\DAV\\INode[]
 	 */
 	public function getChildren() {
-		//logger('children for ' . $this->red_path, LOGGER_DATA);
-		$this->log();
-
-		if (get_config('system', 'block_public') && (! $this->auth->channel_id) && (! $this->auth->observer)) {
-			throw new DAV\Exception\Forbidden('Permission denied.');
-		}
+		logger('Children for ' . $this->red_path, LOGGER_DATA);
 
 		if (($this->auth->owner_id) && (! perm_is_allowed($this->auth->owner_id, $this->auth->observer, 'view_storage'))) {
 			throw new DAV\Exception\Forbidden('Permission denied.');
 		}
 
-		$contents = RedCollectionData($this->red_path, $this->auth);
-		return $contents;
+		$ret = [];
+
+		$file = trim($this->red_path, '/');
+		$path_arr = explode('/', $file);
+
+		if (! $path_arr)
+			return null;
+
+		$channel_name = $path_arr[0];
+
+		$r = q("SELECT channel_id, channel_hash FROM channel WHERE channel_address = '%s' AND NOT ( channel_pageflags & %d )>0 LIMIT 1",
+				dbesc($channel_name),
+				intval(PAGE_REMOVED)
+		);
+
+		if (! $r)
+			return null;
+
+		$channel_id = $r[0]['channel_id'];
+		$channel_hash = $r[0]['channel_hash'];
+
+		// set DAVACL principal for this folder
+		$this->owner = 'principals/channels/' . $channel_hash;
+
+		// finally get the children
+		if (ACTIVE_DBTYPE == DBTYPE_POSTGRES) {
+			$prefix = 'DISTINCT ON (filename)';
+			$suffix = 'ORDER BY filename';
+		} else {
+			$prefix = '';
+			$suffix = 'GROUP BY filename';
+		}
+		$perms = permissions_sql($channel_id);
+		$r = q("SELECT $prefix id, uid, hash, filename, filetype, filesize, revision, folder, flags, created, edited FROM attach WHERE folder = '%s' AND uid = %d $perms $suffix",
+				dbesc($this->folder_hash),
+				intval($channel_id)
+		);
+
+		foreach ($r as $rr) {
+			//logger('Found node: ' . $rr['filename'], LOGGER_DEBUG);
+			if ($rr['flags'] & ATTACH_FLAG_DIR) {
+				$ret[] = new RedDAV\RedDirectory($this->red_path . '/' . $rr['filename'], $this->auth);
+			} else {
+				$ret[] = new RedDAV\RedFile($this->red_path . '/' . $rr['filename'], $rr, $this->auth);
+			}
+		}
+
+		return $ret;
 	}
 
 	/**
 	 * @brief Returns a child by name.
 	 *
-	 *
-	 * @throw \Sabre\DAV\Exception\Forbidden
-	 * @throw \Sabre\DAV\Exception\NotFound
+	 * @throw "\Sabre\DAV\Exception\Forbidden"
+	 * @throw "\Sabre\DAV\Exception\NotFound"
 	 * @param string $name
 	 */
 	public function getChild($name) {
-		logger($name, LOGGER_DATA);
-
-		if (get_config('system', 'block_public') && (! $this->auth->channel_id) && (! $this->auth->observer)) {
-			throw new DAV\Exception\Forbidden('Permission denied.');
-		}
+		logger('Child ' . $name, LOGGER_DATA);
 
 		if (($this->auth->owner_id) && (! perm_is_allowed($this->auth->owner_id, $this->auth->observer, 'view_storage'))) {
 			throw new DAV\Exception\Forbidden('Permission denied.');
-		}
-
-		$modulename = get_app()->module;
-		if ($this->red_path === '/' && $name === $modulename) {
-			//logger('We are at the storage root of the module: ' . $modulename);
-			return new RedDirectory('/', $this->auth);
 		}
 
 		$x = RedFileData($this->red_path . '/' . $name, $this->auth);
@@ -131,7 +231,6 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 	 * @return string
 	 */
 	public function getName() {
-		//logger(basename($this->red_path), LOGGER_DATA);
 		return (basename($this->red_path));
 	}
 
@@ -140,27 +239,25 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 	 *
 	 * @todo handle duplicate directory name
 	 *
-	 * @throw \Sabre\DAV\Exception\Forbidden
+	 * @throw "\Sabre\DAV\Exception\Forbidden"
 	 * @param string $name The new name of the directory.
 	 * @return void
 	 */
 	public function setName($name) {
-		logger('rename ' . basename($this->red_path) . ' -> ' . $name, LOGGER_DATA);
+		logger('Rename ' . basename($this->red_path) . ' -> ' . $name, LOGGER_DATA);
 
-		if ((! $name) || (! $this->auth->owner_id)) {
-			logger('permission denied ' . $name);
-			throw new DAV\Exception\Forbidden('Permission denied.');
-		}
+		// @todo add childExists() if new name already exists
 
+		// This should have been checked already in RedDAVACL.
 		if (! perm_is_allowed($this->auth->owner_id, $this->auth->observer, 'write_storage')) {
-			logger('permission denied '. $name);
+			logger('Permission denied '. $name);
 			throw new DAV\Exception\Forbidden('Permission denied.');
 		}
 
-		list($parent_path, ) = DAV\URLUtil::splitPath($this->red_path);
+		list($parent_path, ) = URLUtil::splitPath($this->red_path);
 		$new_path = $parent_path . '/' . $name;
 
-		$r = q("UPDATE attach SET filename = '%s' WHERE hash = '%s' AND uid = %d",
+		q("UPDATE attach SET filename = '%s' WHERE hash = '%s' AND uid = %d",
 			dbesc($name),
 			dbesc($this->folder_hash),
 			intval($this->auth->owner_id)
@@ -178,21 +275,17 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 	 * After successful creation of the file, you may choose to return the ETag
 	 * of the new file here.
 	 *
-	 * @throw \Sabre\DAV\Exception\Forbidden
+	 * @throw "\Sabre\DAV\Exception\Forbidden"
 	 * @param string $name Name of the file
 	 * @param resource|string $data Initial payload
 	 * @return null|string ETag
 	 */
 	public function createFile($name, $data = null) {
-		logger($name, LOGGER_DEBUG);
+		logger('New file ' . $name, LOGGER_DEBUG);
 
-		if (! $this->auth->owner_id) {
-			logger('permission denied ' . $name);
-			throw new DAV\Exception\Forbidden('Permission denied.');
-		}
-
+		// This should have been checked already in RedDAVACL.
 		if (! perm_is_allowed($this->auth->owner_id, $this->auth->observer, 'write_storage')) {
-			logger('permission denied ' . $name);
+			logger('Permission denied ' . $name);
 			throw new DAV\Exception\Forbidden('Permission denied.');
 		}
 
@@ -204,14 +297,14 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 		);
 
 		if (! $c) {
-			logger('no channel');
+			logger('No channel');
 			throw new DAV\Exception\Forbidden('Permission denied.');
 		}
 
 		$filesize = 0;
 		$hash = random_string();
 
-		$r = q("INSERT INTO attach ( aid, uid, hash, creator, filename, folder, flags, filetype, filesize, revision, data, created, edited, allow_cid, allow_gid, deny_cid, deny_gid )
+		q("INSERT INTO attach ( aid, uid, hash, creator, filename, folder, flags, filetype, filesize, revision, data, created, edited, allow_cid, allow_gid, deny_cid, deny_gid )
 			VALUES ( %d, %d, '%s', '%s', '%s', '%s', '%s', '%s', %d, %d, '%s', '%s', '%s', '%s', '%s', '%s', '%s' ) ",
 			intval($c[0]['channel_account_id']),
 			intval($c[0]['channel_id']),
@@ -247,7 +340,7 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 		$edited = datetime_convert();
 
 		// updates entry with filesize and timestamp
-		$d = q("UPDATE attach SET filesize = '%s', edited = '%s' WHERE hash = '%s' AND uid = %d",
+		q("UPDATE attach SET filesize = '%s', edited = '%s' WHERE hash = '%s' AND uid = %d",
 			dbesc($size),
 			dbesc($edited),
 			dbesc($hash),
@@ -255,12 +348,13 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 		);
 
 		// update the folder's lastmodified timestamp
-		$e = q("UPDATE attach SET edited = '%s' WHERE hash = '%s' AND uid = %d",
+		q("UPDATE attach SET edited = '%s' WHERE hash = '%s' AND uid = %d",
 			dbesc($edited),
 			dbesc($this->folder_hash),
 			intval($c[0]['channel_id'])
 		);
 
+		// @todo move this to own plugin
 		$maxfilesize = get_config('system', 'maxfilesize');
 		if (($maxfilesize) && ($size > $maxfilesize)) {
 			attach_delete($c[0]['channel_id'], $hash);
@@ -288,9 +382,10 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 	 * @return void
 	 */
 	public function createDirectory($name) {
-		logger($name, LOGGER_DEBUG);
+		logger('New directory ' . $name, LOGGER_DEBUG);
 
-		if ((! $this->auth->owner_id) || (! perm_is_allowed($this->auth->owner_id, $this->auth->observer, 'write_storage'))) {
+		// This should have been checked already in RedDAVACL.
+		if ((! $this->auth->owner_id > 0) || (! perm_is_allowed($this->auth->owner_id, $this->auth->observer, 'write_storage'))) {
 			throw new DAV\Exception\Forbidden('Permission denied.');
 		}
 
@@ -302,7 +397,7 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 		if ($r) {
 			$result = attach_mkdir($r[0], $this->auth->observer, array('filename' => $name, 'folder' => $this->folder_hash));
 			if (! $result['success']) {
-				logger('error ' . print_r($result, true), LOGGER_DEBUG);
+				logger('error ' . print_r($result, true), LOGGER_DATA);
 			}
 		}
 	}
@@ -315,12 +410,7 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 	 * @return boolean
 	 */
 	public function childExists($name) {
-		// On storage root of module. We show a list of available channels, so child exists.
-		$modulename = get_app()->module;
-		if ($this->red_path === '/' && $name === $modulename) {
-			logger('We are at the storage root of ' . $modulename . ' showing a channel list', LOGGER_DEBUG);
-			return true;
-		}
+		logger('Checking child: ' . $name, LOGGER_DEBUG);
 
 		$x = RedFileData($this->red_path . '/' . $name, $this->auth, true);
 		//logger('RedFileData returns: ' . print_r($x, true), LOGGER_DATA);
@@ -328,70 +418,6 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 			return true;
 
 		return false;
-	}
-
-	/**
-	 * @todo add description of what this function does.
-	 *
-	 * @throw \Sabre\DAV\Exception\NotFound
-	 * @return void
-	 */
-	function getDir() {
-		//logger($this->red_path, LOGGER_DEBUG);
-		$this->auth->log();
-
-		$file = $this->red_path;
-
-		if ((! $file) || ($file === '/')) {
-			return;
-		}
-
-		$file = trim($file, '/');
-		$path_arr = explode('/', $file);
-
-		if (! $path_arr)
-			return;
-
-		logger('paths: ' . print_r($path_arr, true), LOGGER_DATA);
-
-		$channel_name = $path_arr[0];
-
-		$r = q("SELECT channel_id FROM channel WHERE channel_address = '%s' AND NOT ( channel_pageflags & %d )>0 LIMIT 1",
-			dbesc($channel_name),
-			intval(PAGE_REMOVED)
-		);
-
-		if (! $r) {
-			throw new DAV\Exception\NotFound('The channel with name: ' . $channel_name . ' could not be found.');
-		}
-
-		$channel_id = $r[0]['channel_id'];
-		$this->auth->owner_id = $channel_id;
-		$this->auth->owner_nick = $channel_name;
-
-		$path = '/' . $channel_name;
-		$folder = '';
-		$os_path = '';
-
-		for ($x = 1; $x < count($path_arr); $x++) {
-			$r = q("SELECT id, hash, filename, flags FROM attach WHERE folder = '%s' AND filename = '%s' AND uid = %d AND (flags & %d)>0",
-				dbesc($folder),
-				dbesc($path_arr[$x]),
-				intval($channel_id),
-				intval(ATTACH_FLAG_DIR)
-			);
-
-			if ($r && ( $r[0]['flags'] & ATTACH_FLAG_DIR)) {
-				$folder = $r[0]['hash'];
-				if (strlen($os_path))
-					$os_path .= '/';
-				$os_path .= $folder;
-
-				$path = $path . '/' . $r[0]['filename'];
-			}
-		}
-		$this->folder_hash = $folder;
-		$this->os_path = $os_path;
 	}
 
 	/**
@@ -417,6 +443,7 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 			if (! $r)
 				return '';
 		}
+
 		return datetime_convert('UTC', 'UTC', $r[0]['edited'], 'U');
 	}
 
@@ -448,9 +475,9 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 			$free = (($x) ? $limit - $x[0]['total'] : 0);
 		}
 
-		return array(
+		return [
 			$limit - $free,
-			$free
-		);
+			$free,
+		];
 	}
 }

@@ -2,12 +2,12 @@
 
 namespace RedMatrix\RedDAV;
 
-use Sabre\DAV,
-    Sabre\DAVACL,
-    Sabre\HTTP\URLUtil;
+use Sabre\DAV;
+use Sabre\DAVACL;
+use Sabre\HTTP\URLUtil;
 
 /**
- * @brief RedPrincipalBackend implementation.
+ * @brief PrincipalBackend implementation of Sabre\\DAVACL\\PrincipalBackend\\AbstractBackend.
  *
  * This backend provides principals for DAV from the RedMatrix channels
  * and collections. I am not yet completely sure how this will map with
@@ -19,9 +19,6 @@ use Sabre\DAV,
  *
  * @todo Right now we use xchan_hash as the URI. Maybe it would be nicer to use xchan_addr?
  *
- * @extends \Sabre\DAVACL\PrincipalBackend\AbstractBackend
- *
- * @link http://github.com/friendica/red
  * @author Klaus Weidenbach
  * @license http://opensource.org/licenses/mit-license.php The MIT License (MIT)
  */
@@ -42,7 +39,7 @@ class RedPrincipalBackend extends DAVACL\PrincipalBackend\AbstractBackend {
 	 *
 	 * @param string $prefixPath
 	 *    principals/channels or principals/collections are available
-	 * @throws \Sabre\DAV\Exception\NotFound if another path was requested
+	 * @throws "\Sabre\DAV\Exception\NotFound" if another path was requested
 	 * @return array
 	 */
 	function getPrincipalsByPrefix($prefixPath) {
@@ -123,7 +120,7 @@ class RedPrincipalBackend extends DAVACL\PrincipalBackend\AbstractBackend {
 	/**
 	 * @brief Updates one ore more webdav properties on a principal.
 	 *
-	 * The list of mutations is stored in a Sabre\DAV\PropPatch object.
+	 * The list of mutations is stored in a Sabre\\DAV\\PropPatch object.
 	 * To do the actual updates, you must tell this object which properties
 	 * you're going to process with the handle() method.
 	 *
@@ -173,7 +170,7 @@ class RedPrincipalBackend extends DAVACL\PrincipalBackend\AbstractBackend {
 
 	}
 
-	/**
+	/*
 	 * Finds a principal by its URI.
 	 *
 	 * This method may receive any type of uri, but mailto: addresses will be
@@ -196,7 +193,7 @@ class RedPrincipalBackend extends DAVACL\PrincipalBackend\AbstractBackend {
 	 * @brief Returns the list of groups a principal is a member of.
 	 *
 	 * @param string $principal
-	 * @throws \Sabre\DAV\Exception\NotFound
+	 * @throws "\Sabre\DAV\Exception\NotFound"
 	 * @return array
 	 */
 	function getGroupMembership($principal) {
@@ -210,7 +207,7 @@ class RedPrincipalBackend extends DAVACL\PrincipalBackend\AbstractBackend {
 	 * @brief Returns the list of members for a group-principal.
 	 *
 	 * @param string $principal
-	 * @throws \Sabre\DAV\Exception\NotFound
+	 * @throws "\Sabre\DAV\Exception\NotFound"
 	 * @return array
 	 */
 	function getGroupMemberSet($principal) {

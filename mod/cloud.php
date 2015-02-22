@@ -6,14 +6,14 @@
  * Module for accessing the DAV storage area.
  */
 
-use Sabre\DAV,
-    Sabre\DAVACL,
-    RedMatrix\RedDAV;
+use Sabre\DAV;
+use Sabre\DAVACL;
+use RedMatrix\RedDAV;
 
 // workaround for HTTP-auth in CGI mode
 if (x($_SERVER, 'REDIRECT_REMOTE_USER')) {
  	$userpass = base64_decode(substr($_SERVER["REDIRECT_REMOTE_USER"], 6)) ;
-	if(strlen($userpass)) {
+	if (strlen($userpass)) {
 	 	list($name, $password) = explode(':', $userpass);
 		$_SERVER['PHP_AUTH_USER'] = $name;
 		$_SERVER['PHP_AUTH_PW'] = $password;
@@ -22,7 +22,7 @@ if (x($_SERVER, 'REDIRECT_REMOTE_USER')) {
 
 if (x($_SERVER, 'HTTP_AUTHORIZATION')) {
 	$userpass = base64_decode(substr($_SERVER["HTTP_AUTHORIZATION"], 6)) ;
-	if(strlen($userpass)) {
+	if (strlen($userpass)) {
 		list($name, $password) = explode(':', $userpass);
 		$_SERVER['PHP_AUTH_USER'] = $name;
 		$_SERVER['PHP_AUTH_PW'] = $password;
@@ -100,6 +100,13 @@ function cloud_init(&$a) {
 	$lockPlugin = new DAV\Locks\Plugin($lockBackend);
 	$server->addPlugin($lockPlugin);
 
+	// include some ACL functionality
+	$aclPlugin = new RedDAV\RedDAVACL($auth);
+	// @todo add configure options for these?
+	//$aclPlugin->hideNodesFromListings = true;
+	//$aclPlugin->allowAccessToNodesWithoutACL = false;
+	$server->addPlugin($aclPlugin);
+
 	// The next section of code allows us to bypass prompting for http-auth if a
 	// FILE is being accessed anonymously and permissions allow this. This way
 	// one can create hotlinks to public media files in their cloud and anonymous
@@ -115,7 +122,8 @@ function cloud_init(&$a) {
 
 	if ((! $auth->observer) && ($_SERVER['REQUEST_METHOD'] === 'GET')) {
 		try { 
-			$x = RedFileData('/' . $a->cmd, $auth);
+logger('KW0');
+			$x = RedFileData('/', $auth);
 			if($x instanceof RedDAV\RedFile)
 				$isapublic_file = true;
 		}
