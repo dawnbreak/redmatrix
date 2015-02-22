@@ -2,9 +2,9 @@
 
 namespace RedMatrix\RedDAV;
 
-use Sabre\DAV,
-    Sabre\DAV\Auth\Backend\BackendInterface as AuthPlugin,
-    RedMatrix\RedDAV;
+use Sabre\DAV;
+use Sabre\DAV\Auth\Backend\BackendInterface as AuthPlugin;
+use RedMatrix\RedDAV;
 
 /**
  * @brief Collection of RedMatrix channels.
@@ -12,9 +12,6 @@ use Sabre\DAV,
  * A class that creates a list of accessible channels as an collection to be
  * used as a node in a Sabre server node tree.
  *
- * @extends \Sabre\DAV\Collection
- *
- * @link http://github.com/friendica/red
  * @author Klaus Weidenbach
  * @license http://opensource.org/licenses/mit-license.php The MIT License (MIT)
  */
@@ -37,23 +34,13 @@ class RedChannelsCollection extends DAV\Collection {
 	/**
 	 * @brief Returns an array with all viewable the channels.
 	 *
-	 * Get a list of RedDirectory objects with all the channels where the
-	 * visitor (observer) has <b>view_storage</b> perms.
+	 * Get a list of RedDAV\\RedDirectory objects with all the channels where
+	 * the visitor (observer) has <b>view_storage</b> perms.
 	 *
-	 * @return DAV\INode[]
+	 * @return \\Sabre\\DAV\\INode[]
 	 */
 	function getChildren() {
-		logger('KW: getChildren');
-		logger('Getting children for channels collection.', LOGGER_DEBUG);
-//		logger('current channel_id: ' . $this->auth->channel_id . ' current owner_id: ' . $this->auth->owner_id, LOGGER_DEBUG);
-
-		if (get_config('system', 'block_public') && (! $this->auth->channel_id) && (! $this->auth->observer)) {
-			throw new DAV\Exception\Forbidden('Permission denied.');
-		}
-
-		if ($this->auth->owner_id && (! perm_is_allowed($this->auth->owner_id, $this->auth->observer, 'view_storage'))) {
-			throw new DAV\Exception\Forbidden('Permission denied.');
-		}
+		logger('Children for channels collection.', LOGGER_DEBUG);
 
 		$ret = [];
 		$r = q("SELECT channel_id, channel_address FROM channel WHERE NOT (channel_pageflags & %d)>0 AND NOT (channel_pageflags & %d)>0",
@@ -74,26 +61,24 @@ class RedChannelsCollection extends DAV\Collection {
 	}
 
 	/**
-	 * Returns a specific child node, referenced by its name
+	 * @brief Returns a specific child node, referenced by its name.
 	 *
-	 * This method must throw Sabre\DAV\Exception\NotFound if the node does not
-	 * exist.
+	 * This method must throw \\Sabre\\DAV\\Exception\\NotFound if the node does
+	 * not exist.
 	 *
 	 * @param string $name
-	 * @throws DAV\Exception\NotFound
-	 * @throws DAV\Exception\Forbidden
-	 * @return DAV\INode
+	 * @throws "\Sabre\DAV\Exception\NotFound"
+	 * @throws "\Sabre\DAV\Exception\Forbidden"
+	 * @return \\Sabre\\DAV\\INode in our case it is always a RedDAV\\RedDirectory
 	 */
 	function getChild($name) {
-		logger('KW: getChild: ' .$name);
-		//		foreach($this->getChildren() as $child) {
-		//			if ($child->getName()==$name) return $child;
-		//		}
-		if (get_config('system', 'block_public') && (! $this->auth->channel_id) && (! $this->auth->observer)) {
-			throw new DAV\Exception\Forbidden('Permission denied.');
-		}
+		// generic implementation of getChild(), but too much overhead
+		//foreach($this->getChildren() as $child) {
+		//	if ($child->getName()==$name) return $child;
+		//}
 
-		if (($this->auth->owner_id) && (! perm_is_allowed($this->auth->owner_id, $this->auth->observer, 'view_storage'))) {
+		// Is this still needed here?
+		if (($this->auth->owner_id > 0) && (! perm_is_allowed($this->auth->owner_id, $this->auth->observer, 'view_storage'))) {
 			throw new DAV\Exception\Forbidden('Permission denied.');
 		}
 
@@ -101,12 +86,48 @@ class RedChannelsCollection extends DAV\Collection {
 		if ($x) {
 			return $x;
 		}
+	}
 
-		throw new DAV\Exception\NotFound('Channel not found: ' . $name);
+	/**
+	 * @brief Checks if a child-node exists.
+	 *
+	 * childExists() gets called when we don't have yet a complete
+	 * RedDAV\\RedBasicAuth object. Especially owner_ is not yet available. This
+	 * is also the reason why we can not create RedDAV\\RedDirectory entries here.
+	 *
+	 * @param string $name Name of a channel to check.
+	 * @throws "\Sabre\DAV\Exception\Forbidden" better don't throw this to not leak data
+	 * @return bool
+	 */
+	function childExists($name) {
+		$name = trim($name, '/');
+		$path_arr = explode('/', $name);
+		if (! $path_arr)
+			return false;
+
+		$channel_name = $path_arr[0];
+
+		$r = q("SELECT channel_id FROM channel WHERE channel_address = '%s' AND NOT (channel_pageflags & %d)>0 AND NOT (channel_pageflags & %d)>0",
+				dbesc($channel_name),
+				intval(PAGE_REMOVED),
+				intval(PAGE_HIDDEN)
+		);
+		if ($r) {
+			if (perm_is_allowed($r[0]['channel_id'], $this->auth->observer, 'view_storage')) {
+				return true;
+			}
+			logger('view_storage permission denied to channel ' . $channel_name . ' for observer ' . $this->auth->observer, LOGGER_DEBUG);
+			// better don't throw this exception to not leak information
+			//throw new DAV\Exception\Forbidden('Permission denied.');
+		}
+
+		return false;
 	}
 
 	/**
 	 * @brief Returns the name of the collection.
+	 *
+	 * This name will be viewed when we are the tree's root of the WebDAV server.
 	 *
 	 * @return string
 	 */

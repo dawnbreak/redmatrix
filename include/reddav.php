@@ -22,146 +22,26 @@ use RedMatrix\RedDAV;
 require_once('include/attach.php');
 
 /**
- * @brief TODO what exactly does this function?
- *
- * Array with all RedDirectory and RedFile DAV\Node items for the given path.
- *
- * @todo Is there any reason why this is not inside RedDirectory class? Seems
- * only to be used there and we could simplify it a bit there.
- * @fixme function name looks like a class name, should we rename it?
- *
- * @param string $file path to a directory
- * @param RedBasicAuth &$auth
- * @returns null|array \Sabre\DAV\INode[]
- * @throw \Sabre\DAV\Exception\Forbidden
- * @throw \Sabre\DAV\Exception\NotFound
- */
-function RedCollectionData($file, &$auth) {
-	$ret = array();
-
-	// @todo we can get rid of this
-	$x = strpos($file, '/cloud');
-	if ($x === 0) {
-		$file = substr($file, 6);
-	}
-
-	// return a list of channel if we are not inside a channel
-	if ((! $file) || ($file === '/')) {
-		return RedChannelList($auth);
-	}
-
-	$file = trim($file, '/');
-	$path_arr = explode('/', $file);
-
-	if (! $path_arr)
-		return null;
-
-	$channel_name = $path_arr[0];
-
-	$r = q("SELECT channel_id FROM channel WHERE channel_address = '%s' LIMIT 1",
-		dbesc($channel_name)
-	);
-
-	if (! $r)
-		return null;
-
-	$channel_id = $r[0]['channel_id'];
-	$perms = permissions_sql($channel_id);
-
-	// @todo what? and why here?
-	$auth->owner_id = $channel_id;
-
-	$path = '/' . $channel_name;
-
-	$folder = '';
-	$errors = false;
-	$permission_error = false;
-
-	for ($x = 1; $x < count($path_arr); $x++) {
-		$r = q("SELECT id, hash, filename, flags FROM attach WHERE folder = '%s' AND filename = '%s' AND uid = %d AND (flags & %d)>0 $perms LIMIT 1",
-			dbesc($folder),
-			dbesc($path_arr[$x]),
-			intval($channel_id),
-			intval(ATTACH_FLAG_DIR)
-		);
-		if (! $r) {
-			// path wasn't found. Try without permissions to see if it was the result of permissions.
-			$errors = true;
-			$r = q("select id, hash, filename, flags from attach where folder = '%s' and filename = '%s' and uid = %d and (flags & %d)>0 limit 1",
-				dbesc($folder),
-				basename($path_arr[$x]),
-				intval($channel_id),
-				intval(ATTACH_FLAG_DIR)
-			);
-			if ($r) {
-				$permission_error = true;
-			}
-			break;
-		}
-
-		if ($r && ($r[0]['flags'] & ATTACH_FLAG_DIR)) {
-			$folder = $r[0]['hash'];
-			$path = $path . '/' . $r[0]['filename'];
-		}
-	}
-
-	if ($errors) {
-		if ($permission_error) {
-			throw new DAV\Exception\Forbidden('Permission denied.');
-		} else {
-			throw new DAV\Exception\NotFound('A component of the request file path could not be found.');
-		}
-	}
-
-	// This should no longer be needed since we just returned errors for paths not found
-	if ($path !== '/' . $file) {
-		logger("Path mismatch: $path !== /$file");
-		return NULL;
-	}
-	if(ACTIVE_DBTYPE == DBTYPE_POSTGRES) {
-		$prefix = 'DISTINCT ON (filename)';
-		$suffix = 'ORDER BY filename';
-	} else {
-		$prefix = '';
-		$suffix = 'GROUP BY filename';
-	}
-	$r = q("select $prefix id, uid, hash, filename, filetype, filesize, revision, folder, flags, created, edited from attach where folder = '%s' and uid = %d $perms $suffix",
-		dbesc($folder),
-		intval($channel_id)
-	);
-
-	foreach ($r as $rr) {
-		//logger('filename: ' . $rr['filename'], LOGGER_DEBUG);
-		if ($rr['flags'] & ATTACH_FLAG_DIR) {
-			$ret[] = new RedDAV\RedDirectory($path . '/' . $rr['filename'], $auth);
-		} else {
-			$ret[] = new RedDAV\RedFile($rr['filename'], $rr, $auth);
-		}
-	}
-
-	return $ret;
-}
-
-
-/**
  * @brief TODO What exactly is this function for?
  *
  * @fixme function name looks like a class name, should we rename it?
+ * @todo get rid of this function
  *
  * @param string $file
  *  path to file or directory
  * @param RedBasicAuth &$auth
  * @param boolean $test (optional) enable test mode
  * @return RedFile|RedDirectory|boolean|null
- * @throw \Sabre\DAV\Exception\Forbidden
+ * @throws \Sabre\DAV\Exception\Forbidden
  */
 function RedFileData($file, &$auth, $test = false) {
 	logger($file . (($test) ? ' (test mode) ' : ''), LOGGER_DATA);
 
 	if ((! $file) || ($file === '/')) {
+		logger('KW4a');
 		return new RedDAV\RedDirectory('/', $auth);
 	}
-
+logger('KW4b');
 	$file = trim($file, '/');
 
 	$path_arr = explode('/', $file);
@@ -194,7 +74,7 @@ function RedFileData($file, &$auth, $test = false) {
 
 	$errors = false;
 
-	for ($x = 1; $x < count($path_arr); $x++) {		
+	for ($x = 1; $x < count($path_arr); $x++) {
 		$r = q("select id, hash, filename, flags from attach where folder = '%s' and filename = '%s' and uid = %d and (flags & %d)>0 $perms",
 			dbesc($folder),
 			dbesc($path_arr[$x]),
@@ -204,7 +84,7 @@ function RedFileData($file, &$auth, $test = false) {
 
 		if ($r && ( $r[0]['flags'] & ATTACH_FLAG_DIR)) {
 			$folder = $r[0]['hash'];
-			$path = $path . '/' . $r[0]['filename'];
+			$path .= '/' . $r[0]['filename'];
 		}
 		if (! $r) {
 			$r = q("select id, uid, hash, filename, filetype, filesize, revision, folder, flags, created, edited from attach 
@@ -238,10 +118,12 @@ function RedFileData($file, &$auth, $test = false) {
 		logger('not found ' . $file);
 		if ($test)
 			return false;
+
 		if ($permission_error) {
 			logger('permission error ' . $file);
 			throw new DAV\Exception\Forbidden('Permission denied.');
 		}
+
 		return;
 	}
 
@@ -255,5 +137,6 @@ function RedFileData($file, &$auth, $test = false) {
 			return new RedDAV\RedFile($r[0]['filename'], $r[0], $auth);
 		}
 	}
+
 	return false;
 }
