@@ -73,6 +73,14 @@ class RedBasicAuth extends DAV\Auth\Backend\AbstractBasic {
 	 * @var string
 	 */
 	public $owner_nick = '';
+	/**
+	 * @brief The channel_hash of the currently visited path.
+	 *
+	 * Used for setting DAVACL's owner attribute.
+	 *
+	 * @var string
+	 */
+	public $owner_hash = '';
 
 	/**
 	 * Timezone from the visiting channel's channel_timezone.
@@ -208,5 +216,6 @@ class RedBasicAuth extends DAV\Auth\Backend\AbstractBasic {
 		logger('channel_account_id ' . $this->channel_account_id, LOGGER_DATA);
 		logger('owner_id ' . $this->owner_id, LOGGER_DATA);
 		logger('owner_nick ' . $this->owner_nick, LOGGER_DATA);
+		logger('owner_hash ' . $this->owner_hash, LOGGER_DATA);
 	}
 }

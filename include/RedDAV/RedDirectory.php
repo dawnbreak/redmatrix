@@ -59,6 +59,8 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 			$this->red_path = '/';
 		}
 		$this->folder_hash = '';
+		$this->owner = 'principals/channels/' . $this->auth->owner_hash;
+
 		$this->getDir();
 	}
 
@@ -143,7 +145,7 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota {
 	 * @return void
 	 */
 	public function setName($name) {
-		logger('old name ' . basename($this->red_path) . ' -> ' . $name, LOGGER_DATA);
+		logger('rename ' . basename($this->red_path) . ' -> ' . $name, LOGGER_DATA);
 
 		if ((! $name) || (! $this->auth->owner_id)) {
 			logger('permission denied ' . $name);

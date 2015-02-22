@@ -22,38 +22,6 @@ use RedMatrix\RedDAV;
 require_once('include/attach.php');
 
 /**
- * @brief Returns an array with viewable channels.
- *
- * Get a list of RedDirectory objects with all the channels where the visitor
- * has <b>view_storage</b> perms.
- *
- * @todo Is there any reason why this is not inside RedDirectory class?
- * @fixme function name looks like a class name, should we rename it?
- *
- * @param RedBasicAuth &$auth
- * @return array RedDirectory[]
- */
-function RedChannelList(&$auth) {
-	$ret = array();
-
-	$r = q("SELECT channel_id, channel_address FROM channel WHERE NOT (channel_pageflags & %d)>0 AND NOT (channel_pageflags & %d)>0",
-		intval(PAGE_REMOVED),
-		intval(PAGE_HIDDEN)
-	);
-
-	if ($r) {
-		foreach ($r as $rr) {
-			if (perm_is_allowed($rr['channel_id'], $auth->observer, 'view_storage')) {
-				logger('Found storage for channel: ' . $rr['channel_address'], LOGGER_DATA);
-				$ret[] = new RedDAV\RedDirectory($rr['channel_address'], $auth);
-			}
-		}
-	}
-	return $ret;
-}
-
-
-/**
  * @brief TODO what exactly does this function?
  *
  * Array with all RedDirectory and RedFile DAV\Node items for the given path.
