@@ -5,14 +5,16 @@ namespace RedMatrix\RedDAV;
 use Sabre\DAV;
 
 /**
- * @brief Authentication backend class for RedDAV.
+ * @brief Basic Authentication Backend class for RedDAV.
+ *
+ * Checks authentication and provides HTTP basic auth fallback.
  *
  * This class also contains some data which is not necessary for authentication
  * like timezone settings.
  *
  * @license http://opensource.org/licenses/mit-license.php The MIT License (MIT)
  */
-class RedBasicAuth extends DAV\Auth\Backend\AbstractBasic {
+class RedBasicAuthBackend extends DAV\Auth\Backend\AbstractBasic {
 
 	/**
 	 * @brief The channel_address of the currently locally logged-in channel.
@@ -86,6 +88,97 @@ class RedBasicAuth extends DAV\Auth\Backend\AbstractBasic {
 	 */
 	protected $timezone = '';
 
+
+	/**
+	 * @brief Authenticates the user based on the current request.
+	 *
+	 * If authentication is successful, true must be returned.
+	 * If authentication fails, an exception must be thrown.
+	 *
+	 * When the user it not already authenticated provide a HTTP basic auth.
+	 * This is required for WebDAV clients and guest access.
+	 *
+	 * This method has an index of 10 on beforeMethod.
+	 *
+	 * @param \Sabre\DAV\Server $server
+	 * @param string $realm
+	 * @throws \Sabre\DAV\Exception\NotAuthenticated
+	 * @throws \Sabre\DAV\Exception\Forbidden
+	 * @return boolean true on success, otherwise exception
+	 */
+	function authenticate(DAV\Server $server, $realm) {
+		$ob_hash = get_observer_hash();
+		if ($ob_hash) {
+			if (local_channel()) {
+				$channel = get_app()->get_channel();
+				$this->setCurrentUser($channel['channel_address']);
+				$this->channel_id = $channel['channel_id'];
+				$this->channel_account_id = $channel['channel_account_id'];
+				if ($channel['channel_timezone'])
+					$this->setTimezone($channel['channel_timezone']);
+			}
+			$this->observer = $ob_hash;
+
+			// Check if public access is blocked and if it is blocked check
+			// if all values (channel_id and observer) are present to be able
+			// to check for permissions.
+			if (get_config('system', 'block_public') && (! $this->channel_id)) {
+				throw new DAV\Exception\Forbidden('Permission denied.');
+			}
+
+			// we are logged-in already through local login, ZOT, snakebite?
+			return true;
+		}
+
+		// The next section of code allows us to bypass prompting for http-auth if a
+		// FILE is being accessed anonymously and permissions allow this. This way
+		// one can create hotlinks to public media files in their cloud and anonymous
+		// viewers won't get asked to login.
+		// If a DIRECTORY is accessed or there are permission issues accessing the
+		// file and we aren't previously authenticated via zot, prompt for HTTP-auth.
+		// This will be the default case for mounting a DAV directory.
+		// In order to avoid prompting for passwords for viewing a DIRECTORY, add
+		// the URL query parameter 'davguest=1'.
+
+		//$isapublic_file = false;
+		$davguest = ((x($_SESSION, 'davguest')) ? true : false);
+
+		if ($server->httpRequest->getMethod() === 'GET') {
+			$path = $server->httpRequest->getPath();
+			try {
+				/** @todo get rid of RedFileData() */
+				$x = RedFileData($path, $this);
+				if ($x instanceof \RedMatrix\RedDAV\RedFile) {
+					// anonymous hotlinking public file without login
+					return true;
+				}
+				if ($x instanceof \RedMatrix\RedDAV\RedDirectory) {
+					if ($davguest) {
+						// anonymous access to directories when ?davguest parameter set
+						return true;
+					}
+				}
+			} catch (Exception $e) {
+				// RedFileData() threw a Forbidden exception
+				//$isapublic_file = false;
+			}
+		}
+
+		// If not authenticated and no hotlinking or davguest access matched
+		// try a HTTP basic auth. Allows guest logon.
+		// This should also be the entry point for most WebDAV clients.
+		try {
+			parent::authenticate($server, $realm);
+			// @FIXME cleanup $this->currentUser from authenticate() is not what we use in getCurrentUser()
+		} catch (Exception $e) {
+			logger('auth exception: ' . $e->getMessage());
+			http_status_exit($e->getHTTPCode(), $e->getMessage());
+		}
+
+		// successfull authentication
+		return true;
+	}
+
 	/**
 	 * @brief Validates a username and password.
 	 *
@@ -94,7 +187,7 @@ class RedBasicAuth extends DAV\Auth\Backend\AbstractBasic {
 	 * @see \\Sabre\\DAV\\Auth\\Backend\\AbstractBasic::validateUserPass()
 	 * @param string $username
 	 * @param string $password
-	 * @return bool
+	 * @return boolean
 	 */
 	protected function validateUserPass($username, $password) {
 		if (trim($password) === '+++') {
@@ -122,8 +215,9 @@ class RedBasicAuth extends DAV\Auth\Backend\AbstractBasic {
 			);
 			if ($x) {
 				$record = $x[0];
-				if (($record['account_flags'] == ACCOUNT_OK) || ($record['account_flags'] == ACCOUNT_UNVERIFIED)
-				&& (hash('whirlpool', $record['account_salt'] . $password) === $record['account_password'])) {
+				if (($record['account_flags'] == ACCOUNT_OK)
+						|| ($record['account_flags'] == ACCOUNT_UNVERIFIED)
+						&& (hash('whirlpool', $record['account_salt'] . $password) === $record['account_password'])) {
 					logger('password verified for ' . $username);
 					return $this->setAuthenticated($r[0]);
 				}
@@ -178,7 +272,7 @@ class RedBasicAuth extends DAV\Auth\Backend\AbstractBasic {
 	}
 
 	/**
-	 * @brief Sets the timezone from the channel in RedBasicAuth.
+	 * @brief Sets the timezone from the channel in RedBasicAuthBackend.
 	 *
 	 * Set in mod/cloud.php if the channel has a timezone set.
 	 *
@@ -200,7 +294,7 @@ class RedBasicAuth extends DAV\Auth\Backend\AbstractBasic {
 	}
 
 	/**
-	 * @brief Prints out all RedBasicAuth variables to logger().
+	 * @brief Prints out all RedBasicAuthBackend variables to logger().
 	 *
 	 * @return void
 	 */

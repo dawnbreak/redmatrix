@@ -5,8 +5,8 @@ namespace RedMatrix\RedDAV;
 use Sabre\DAV;
 use Sabre\DAVACL;
 use Sabre\HTTP\URLUtil;
-use RedMatrix\RedDAV\RedBasicAuth as RedAuth;
 use RedMatrix\RedDAV;
+use RedMatrix\RedDAV\RedBasicAuthBackend;
 
 /**
  * @brief This class represents a directory node in DAV.
@@ -22,7 +22,7 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota /*, D
 	}
 
 	/**
-	 * @var RedDAV\RedBasicAuth
+	 * @var \RedMatrix\RedDAV\RedBasicAuthBackend
 	 */
 	private $auth;
 
@@ -51,11 +51,11 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota /*, D
 	 * @brief Sets up the directory node, expects a full path.
 	 *
 	 * @param string $ext_path a full path
-	 * @param RedDAV\RedBasicAuth $auth
+	 * @param "\RedMatrix\RedDAV\RedBasicAuthBackend" $auth
 	 * @throw "\Sabre\DAV\Exception\Forbidden"
 	 * @throw "\Sabre\DAV\Exception\NotFound"
 	 */
-	public function __construct($ext_path, RedAuth $auth) {
+	public function __construct($ext_path, RedBasicAuthBackend $auth) {
 		logger('Directory ' . $ext_path, LOGGER_DATA);
 		$this->auth = $auth;
 
