@@ -3,13 +3,13 @@
 namespace RedMatrix\RedDAV;
 
 use Sabre\DAV;
-use Sabre\DAV\Auth\Backend\BackendInterface as AuthPlugin;
 use RedMatrix\RedDAV;
+use RedMatrix\RedDAV\RedBasicAuthBackend;
 
 /**
  * @brief Collection of RedMatrix channels.
  *
- * A class that creates a list of accessible channels as an collection to be
+ * A class that creates a list of accessible channels as a collection to be
  * used as a node in a Sabre server node tree.
  *
  * @author Klaus Weidenbach
@@ -18,17 +18,17 @@ use RedMatrix\RedDAV;
 class RedChannelsCollection extends DAV\Collection {
 
 	/**
-	 * @var RedDAV\RedBasicAuth
+	 * @var \RedMatrix\RedDAV\RedBasicAuthBackend
 	 */
 	protected $auth;
 
 	/**
 	 * @brief Constructor for RedChannelsCollection
 	 *
-	 * @param AuthPlugin $auth_plugin
+	 * @param \RedMatrix\RedDAV\RedBasicAuthBackend $auth
 	 */
-	public function __construct(AuthPlugin $auth_plugin) {
-		$this->auth = $auth_plugin;
+	public function __construct(RedBasicAuthBackend $auth) {
+		$this->auth = $auth;
 	}
 
 	/**

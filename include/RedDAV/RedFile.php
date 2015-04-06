@@ -3,7 +3,7 @@
 namespace RedMatrix\RedDAV;
 
 use Sabre\DAV;
-use RedMatrix\RedDAV\RedBasicAuth as RedAuth;
+use RedMatrix\RedDAV\RedBasicAuthBackend;
 
 /**
  * @brief This class represents a file node in DAV.
@@ -30,7 +30,7 @@ class RedFile extends DAV\Node implements DAV\IFile /*, DAVACL\IACL */ {
 	private $data;
 	/**
 	 * @see \Sabre\DAV\Auth\Backend\BackendInterface
-	 * @var \RedMatrix\RedDAV\RedBasicAuth
+	 * @var \RedMatrix\RedDAV\RedBasicAuthBackend
 	 */
 	private $auth;
 	/**
@@ -43,9 +43,9 @@ class RedFile extends DAV\Node implements DAV\IFile /*, DAVACL\IACL */ {
 	 *
 	 * @param string $name
 	 * @param array $data from attach table
-	 * @param RedDAV\RedBasicAuth $auth
+	 * @param \RedMatrix\RedDAV\RedBasicAuthBackend $auth
 	 */
-	public function __construct($name, $data, RedAuth $auth) {
+	public function __construct($name, $data, RedBasicAuthBackend $auth) {
 		$this->name = $name;
 		$this->data = $data;
 		$this->auth = $auth;

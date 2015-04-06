@@ -6,7 +6,7 @@ use Sabre\DAV;
 use Sabre\HTTP\URLUtil;
 use Sabre\HTTP\RequestInterface;
 use Sabre\HTTP\ResponseInterface;
-use Sabre\DAV\Auth\Backend\BackendInterface as AuthPlugin;
+use RedMatrix\RedDAV\RedBasicAuthBackend;
 
 /**
  * @brief Provides a DAV frontend for the webbrowser.
@@ -20,7 +20,7 @@ class RedBrowser extends DAV\Browser\Plugin {
 
 	/**
 	 * @see \Sabre\DAV\Auth\Backend\BackendInterface
-	 * @var RedDAV\RedBasicAuth
+	 * @var \RedMatrix\RedDAV\RedBasicAuthBackend
 	 */
 	private $auth;
 
@@ -31,9 +31,9 @@ class RedBrowser extends DAV\Browser\Plugin {
 	 * At the moment the write_storage permission is only valid for the whole
 	 * folder. No file specific permissions yet.
 	 *
-	 * @param RedDAV\RedBasicAuth &$auth
+	 * @param \RedMatrix\RedDAV\RedBasicAuthBackend $auth
 	 */
-	public function __construct(AuthPlugin &$auth) {
+	public function __construct(RedBasicAuthBackend $auth) {
 		$this->auth = $auth;
 		parent::__construct(false);
 	}
@@ -62,6 +62,8 @@ class RedBrowser extends DAV\Browser\Plugin {
 	 *
 	 * Together with beforeMethod from DAVACL it enables POST actions when
 	 * permissions allow it.
+	 *
+	 * This method has an index of 50 on beforeMethod.
 	 *
 	 * @param RequestInterface $request
 	 * @param ResponseInterface $response
