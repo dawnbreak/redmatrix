@@ -23,6 +23,15 @@ function js_strings() {
 		'$linkurl'     => t('Please enter a link URL'),
 		'$leavethispage' => t('Unsaved changes. Are you sure you wish to leave this page?'),
 
+		'$filename'          => t('Filename'),
+		'$filesize'          => t('Filesize'),
+		'$mimetype'          => t('Mimetype'),
+		'$cloud_sizetoobig'  => t('Selected files are too big to upload successfully. Upload limit is %s'),
+		'$cloud_ntoobig'     => t('%d file(s) are bigger than the upload file limit of %s'),
+		'$cloud_filetoobig'  => t('(This file is too big and upload will fail. Max size for single file is set to %s)'),
+		'$cloud_noFilesSelected'  => t('No files selected!'),
+		'$cloud_filePreviews'     => t('File previews'),
+
 		'$t01' => ((t('timeago.prefixAgo') != 'timeago.prefixAgo') ? t('timeago.prefixAgo') : ''),
 		'$t02' => ((t('timeago.prefixFromNow') != 'timeago.prefixFromNow') ? t('timeago.prefixFromNow') : ''),
 		'$t03' => t('ago'),

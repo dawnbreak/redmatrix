@@ -1,5 +1,4 @@
 <script>
-
 	var aStr = {
 
 		'delitem'     : "{{$delitem}}",
@@ -23,6 +22,15 @@
 		'linkurl'     : "{{$linkurl}}",
 		'leavethispage' : "{{$leavethispage}}",
 
+		'filename'    : "{{$filename}}",
+		'filesize'    : "{{$filesize}}",
+		'mimetype'    : "{{$mimetype}}",
+		'cloud_sizetoobig'      : "{{$cloud_sizetoobig}}",
+		'cloud_filetoobig'      : "{{$cloud_filetoobig}}",
+		'cloud_ntoobig'         : "{{$cloud_ntoobig}}",
+		'cloud_noFilesSelected' : "{{$cloud_noFilesSelected}}",
+		'cloud_filePreviews'    : "{{$cloud_filePreviews}}",
+
 		't01' : "{{$t01}}",
 		't02' : "{{$t02}}",
 		't03' : "{{$t03}}",
@@ -43,4 +51,3 @@
 	};
 
 </script>
-		

@@ -79,6 +79,7 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota /*, D
 		$permission_error = false;
 
 		$perms = permissions_sql($this->auth->owner_id);
+		// x = 0 is the channel
 		for ($x = 1; $x < count($path_arr); $x++) {
 			$r = q("SELECT id, hash, filename, flags FROM attach WHERE folder = '%s' AND filename = '%s' AND uid = %d AND (flags & %d)>0 $perms LIMIT 1",
 					dbesc($folder),
@@ -416,7 +417,7 @@ class RedDirectory extends DAV\Node implements DAV\ICollection, DAV\IQuota /*, D
 
 		$x = RedFileData($this->red_path . '/' . $name, $this->auth, true);
 		//logger('RedFileData returns: ' . print_r($x, true), LOGGER_DATA);
-		if ($x)
+		if ($x && ! is_null($x))
 			return true;
 
 		return false;

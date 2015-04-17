@@ -8,11 +8,16 @@ use Sabre\HTTP\RequestInterface;
 use Sabre\HTTP\ResponseInterface;
 use RedMatrix\RedDAV\RedBasicAuthBackend;
 
+require_once 'include/environment.php';
+
 /**
  * @brief Provides a DAV frontend for the webbrowser.
  *
  * RedBrowser is a SabreDAV server-plugin to provide a view to the DAV storage
- * for the webbrowser.
+ * for the web browser.
+ *
+ * @todo Implement upload progress bar
+ *       http://php.net/manual/en/session.upload-progress.php
  *
  * @license http://opensource.org/licenses/mit-license.php The MIT License (MIT)
  */
@@ -53,7 +58,35 @@ class RedBrowser extends DAV\Browser\Plugin {
 		if ($which)
 			profile_load($a, $which, $profile);
 
+		// register our events
+		$this->server->on('method:POST', [$this, 'checkhttpPOST'], 10);
 		$this->server->on('beforeMethod', [$this, 'redBeforeMethod'], 50);
+	}
+
+	/**
+	 * @brief Prevent Exception when POST > post_max_size.
+	 *
+	 * If POST request > post_max_size $_POST will be empty and therefore an
+	 * \Sabre\DAV\Exception\NotImplemented would be thrown further down.
+	 * We prevent this by stopping the method:POST chain under this condition.
+	 *
+	 * @param RequestInterface $request
+	 * @param ResponseInterface $response
+	 * @return boolean false if POST was too big to stop method:POST chain
+	 */
+	function checkhttpPOST(RequestInterface $request, ResponseInterface $response) {
+		if (empty($_POST)) {
+			$limit = getPhpiniUploadLimits();
+			notice(sprintf(t('Nothing could get uploaded.<br>Your request exeeded the maximum allowed size of %s.'),
+					userReadableSize($limit['post_max_size'])));
+
+			// Redirect after failure
+			$response->setHeader('Location', $request->getUrl());
+			$response->setStatus(302);
+
+			// stop processing method:POST chain
+			return false;
+		}
 	}
 
 	/**
@@ -145,6 +178,25 @@ class RedBrowser extends DAV\Browser\Plugin {
 				attach_delete($this->auth->owner_id, $f['hash']);
 
 				break;
+			case 'put':
+				if ($_FILES)
+					$file = current($_FILES);
+				else
+					break;
+
+				if ($file['error'] === UPLOAD_ERR_OK)
+					break;
+
+				if ($file['error'] === UPLOAD_ERR_INI_SIZE) {
+					$limit = getPhpiniUploadLimits();
+					$note = sprintf(t('Could not upload file %s. It is over the filesize limit of %s.'),
+							$file['name'],
+							userReadableSize($limit['max_upload_filesize'])
+							);
+					notice($note);
+				}
+
+				break;
 		}
 
 		return $ret;
@@ -177,7 +229,6 @@ class RedBrowser extends DAV\Browser\Plugin {
 			'{DAV:}getcontentlength',
 			'{DAV:}getlastmodified',
 			], 1);
-
 
 		$parent = $this->server->tree->getNodeForPath($path);
 
@@ -251,7 +302,6 @@ class RedBrowser extends DAV\Browser\Plugin {
 			$lastmodified = ((isset($file[200]['{DAV:}getlastmodified'])) ? $file[200]['{DAV:}getlastmodified']->getTime()->format('Y-m-d H:i:s') : '');
 
 			$fullPath = URLUtil::encodePath('/' . trim($this->server->getBaseUri() . ($path ? $path . '/' : '') . $name, '/'));
-
 
 			$displayName = isset($file[200]['{DAV:}displayname']) ? $file[200]['{DAV:}displayname'] : $name;
 			$displayName = $this->escapeHTML($displayName);
@@ -380,12 +430,29 @@ class RedBrowser extends DAV\Browser\Plugin {
 		if (get_class($node) === "\RedMatrix\RedDAV\RedChannelsCollection")
 			return;
 
+		// get limits from php.ini
+		$limits = getPhpiniUploadLimits();
+
 		$output .= replace_macros(get_markup_template('cloud_actionspanel.tpl'), array(
 				'$folder_header' => t('Create new folder'),
 				'$folder_submit' => t('Create'),
 				'$upload_header' => t('Upload file'),
-				'$upload_submit' => t('Upload')
-			));
+				'$upload_submit' => t('Upload'),
+				'$overwrite' => t('Overwrite existing files'),
+				'$max_upload_filesize'  => userReadableSize($limits['max_upload_filesize']),
+				'$max_upload_totalsize' => userReadableSize($limits['post_max_size']),
+				'$max_file_uploads' => $limits['max_file_uploads'],
+				'$limit_info' => sprintf( t('(Maximum number of files %s, maximum size per file %s, maximum total upload size %s)'),
+						$limits['max_file_uploads'],
+						userReadableSize($limits['max_upload_filesize']),
+						userReadableSize($limits['post_max_size'])
+						)
+				));
+
+		$a = get_App();
+		$a->page['htmlhead'] .= '<script>var cloud_upload_filesize = ' . $limits['max_upload_filesize']
+		. ";\nvar cloud_upload_size = " . $limits['post_max_size']
+		. ";\nvar cloud_upload_files = " . $limits['max_file_uploads'] . ';</script>';
 	}
 
 	/**

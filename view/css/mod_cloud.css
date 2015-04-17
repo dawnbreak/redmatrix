@@ -41,3 +41,11 @@
 	padding: 4px;
 	width: 100%;
 }
+
+output {
+	display: inline-block;
+}
+#cloudFilesPreview img {
+	float: left;
+	margin-right: 4px;'
+}

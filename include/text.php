@@ -2166,7 +2166,7 @@ function jindent($json) {
 				$result .= $indentStr;
 			}
 		}
-		
+
 		$prevChar = $char;
 	}
 
@@ -2622,3 +2622,4 @@ function userReadableSize($size) {
 
 	return $ret;
 }
+
