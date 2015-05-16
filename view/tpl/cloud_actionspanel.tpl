@@ -2,6 +2,7 @@
 	<label for="files-mkdir">{{$folder_header}}</label>
 	<form method="post" action="">
 		<input type="hidden" name="sabreAction" value="mkcol">
+		<input type="hidden" name="form_security_token" value="{{$sectoken_mkcol}}">
 		<input id="files-mkdir" type="text" name="name" class="form-control form-group">
 		<button class="btn btn-primary btn-sm pull-right" type="submit" value="{{$folder_submit}}">{{$folder_submit}}</button>
 	</form>
@@ -12,7 +13,8 @@
 	<br>{{$limit_info}}
 	<form method="post" action="" enctype="multipart/form-data">
 		<input type="hidden" name="sabreAction" value="put">
-		<input class="form-group" id="files-upload" type="file" name="file" onchange="cloudCheckFiles(this.files);">
+		<input type="hidden" name="form_security_token" value="{{$sectoken_put}}">
+		<input class="form-group" id="files-upload" type="file" name="file[]" onchange="cloudCheckFiles(this.files);" multiple>
 		<input type="checkbox" name="overwrite" id="files_overwrite"><label for="files_overwrite">{{$overwrite}}</label>
 		<button class="btn btn-primary btn-sm pull-right" type="submit" value="{{$upload_submit}}">{{$upload_submit}}</button>
 		<div id="cloudUpload"><h3>Selected uploads summary</h3>

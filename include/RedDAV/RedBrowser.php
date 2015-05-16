@@ -115,7 +115,7 @@ class RedBrowser extends DAV\Browser\Plugin {
 				// check write_storage permission and enable POST handlers
 				if (perm_is_allowed($this->auth->owner_id, $this->auth->observer, 'write_storage')) {
 					$this->enablePost = true;
-					$this->server->on('method:POST', [$this,'httpPOST']);
+					$this->server->on('method:POST', [$this, 'httpPOST']);
 					$this->server->on('onBrowserPostAction', [$this, 'redPostAction']);
 				}
 				break;
@@ -125,23 +125,25 @@ class RedBrowser extends DAV\Browser\Plugin {
 	/**
 	 * @brief Handle our events from POST actions.
 	 *
-	 * Provides delete support for sabreAction.
+	 * Provides delete support for sabreAction and an improved put support.
+	 * It supports multiple uploads and gives feedback on error.
 	 *
 	 * @param string $uri
 	 * @param string $action
 	 * @param array $postVars
-	 * @return boolean
+	 * @return boolean false will stop other events in the beforeMethod chain to execute
 	 */
 	function redPostAction($uri, $action, $postVars) {
 		$ret = true;
 
 		logger('uri: ' . $uri . ' action: ' . $action . ' postVars: ' . print_r($postVars, true));
 
-		switch ($action) {
-			case 'del' :
-				/* @TODO move check to top when all forms have security token. */
-				check_form_security_token_redirectOnErr($this->server->getBaseUri() . $uri);
+		check_form_security_token_redirectOnErr($this->server->getBaseUri() . $uri, $action);
 
+		switch ($action) {
+
+			// delete an attachment
+			case 'del' :
 				if (! isset($postVars['attachId'])) {
 					$ret = false;
 					logger('No attachId provided in POST variables.');
@@ -168,7 +170,7 @@ class RedBrowser extends DAV\Browser\Plugin {
 					intval($postVars['attachId']),
 					intval($this->auth->owner_id)
 				);
-				if(! $r) {
+				if (! $r) {
 					$ret = false;
 					notice( t('File not found.') . EOL);
 					break;
@@ -177,25 +179,61 @@ class RedBrowser extends DAV\Browser\Plugin {
 				$f = $r[0];
 				attach_delete($this->auth->owner_id, $f['hash']);
 
+				// stop executing beforeMethod chain
+				$ret = false;
 				break;
-			case 'put':
+
+			// from httpPOST with sabreAction "put"
+			case 'put' :
 				if ($_FILES)
 					$file = current($_FILES);
 				else
 					break;
 
-				if ($file['error'] === UPLOAD_ERR_OK)
-					break;
+				$limit = getPhpiniUploadLimits();
 
-				if ($file['error'] === UPLOAD_ERR_INI_SIZE) {
-					$limit = getPhpiniUploadLimits();
-					$note = sprintf(t('Could not upload file %s. It is over the filesize limit of %s.'),
-							$file['name'],
-							userReadableSize($limit['max_upload_filesize'])
-							);
-					notice($note);
+				for ($i = 0; $i < count($file['name']); $i++) {
+					switch ($file['error'][$i]) {
+
+						// no upload errors, create the file
+						case UPLOAD_ERR_OK :
+							list(, $newName) = URLUtil::splitPath(trim($file['name'][$i]));
+							$newFile = $uri . '/' . $newName;
+							if (is_uploaded_file($file['tmp_name'][$i])) {
+								if (! $this->server->tree->nodeExists($newFile)) {
+									$this->server->createFile($newFile, fopen($file['tmp_name'][$i], 'r'));
+								} else if ($postVars['overwrite']) {
+									$this->server->createFile($newFile, fopen($file['tmp_name'][$i], 'r'));
+									notice(sprintf(t('Overwrote file %s.'), $file['name'][$i]));
+								} else {
+									notice(sprintf(t('Did not overwrite file %s.'), $file['name'][$i]));
+								}
+							}
+							break;
+
+						// file was bigger than limit in php.ini
+						case UPLOAD_ERR_INI_SIZE :
+							logger('File ' . $file['name'][$i] . ' was over the upload limit.');
+							$note = sprintf(t('Could not upload file %s. It is over the filesize limit of %s.'),
+									$file['name'][$i],
+									userReadableSize($limit['max_upload_filesize']));
+							notice($note);
+							break;
+
+						// there could be several other errors
+						// if some are also more common, we could add them and provide better feedback
+						default :
+							logger('There was an error uploading file ' . $file['name'][$i]
+								. '. Error code ' . $file['error'][$i]. ' see http://php.net/manual/en/features.file-upload.errors.php');
+							$note = sprintf(t('Could not upload file %s.'),
+									$file['name'][$i]);
+							notice($note);
+							break;
+					}
 				}
 
+				// stop executing beforeMethod chain
+				$ret = false;
 				break;
 		}
 
@@ -379,7 +417,7 @@ class RedBrowser extends DAV\Browser\Plugin {
 				'$upload' => t('Upload'),
 				'$is_owner' => $is_owner,
 				'$channel' => $this->auth->getCurrentUser(),
-				'$sectoken' => get_form_security_token(),
+				'$sectoken' => get_form_security_token('del'),
 				'$parentpath' => $parentpath,
 				'$entries' => $f,
 				'$name' => t('Name'),
@@ -434,6 +472,8 @@ class RedBrowser extends DAV\Browser\Plugin {
 		$limits = getPhpiniUploadLimits();
 
 		$output .= replace_macros(get_markup_template('cloud_actionspanel.tpl'), array(
+				'$sectoken_mkcol' => get_form_security_token('mkcol'),
+				'$sectoken_put' => get_form_security_token('put'),
 				'$folder_header' => t('Create new folder'),
 				'$folder_submit' => t('Create'),
 				'$upload_header' => t('Upload file'),
