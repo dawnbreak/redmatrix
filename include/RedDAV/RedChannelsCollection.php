@@ -77,10 +77,11 @@ class RedChannelsCollection extends DAV\Collection {
 		//	if ($child->getName()==$name) return $child;
 		//}
 
+		// Here is a problem if channel available, but folder not existent, because owner_id > 0
 		// Is this still needed here?
-		if (($this->auth->owner_id > 0) && (! perm_is_allowed($this->auth->owner_id, $this->auth->observer, 'view_storage'))) {
-			throw new DAV\Exception\Forbidden('Permission denied.');
-		}
+		//if (($this->auth->owner_id > 0) && (! perm_is_allowed($this->auth->owner_id, $this->auth->observer, 'view_storage'))) {
+		//	throw new DAV\Exception\Forbidden('Permission denied.');
+		//}
 
 		$x = new RedDAV\RedDirectory($name, $this->auth);
 		if ($x) {

@@ -59,34 +59,9 @@ class RedBrowser extends DAV\Browser\Plugin {
 			profile_load($a, $which, $profile);
 
 		// register our events
-		$this->server->on('method:POST', [$this, 'checkhttpPOST'], 10);
 		$this->server->on('beforeMethod', [$this, 'redBeforeMethod'], 50);
-	}
-
-	/**
-	 * @brief Prevent Exception when POST > post_max_size.
-	 *
-	 * If POST request > post_max_size $_POST will be empty and therefore an
-	 * \Sabre\DAV\Exception\NotImplemented would be thrown further down.
-	 * We prevent this by stopping the method:POST chain under this condition.
-	 *
-	 * @param RequestInterface $request
-	 * @param ResponseInterface $response
-	 * @return boolean false if POST was too big to stop method:POST chain
-	 */
-	function checkhttpPOST(RequestInterface $request, ResponseInterface $response) {
-		if (empty($_POST)) {
-			$limit = getPhpiniUploadLimits();
-			notice(sprintf(t('Nothing could get uploaded.<br>Your request exeeded the maximum allowed size of %s.'),
-					userReadableSize($limit['post_max_size'])));
-
-			// Redirect after failure
-			$response->setHeader('Location', $request->getUrl());
-			$response->setStatus(302);
-
-			// stop processing method:POST chain
-			return false;
-		}
+		$this->server->on('method:POST', [$this, 'checkhttpPOST'], 10);
+		$this->server->on('exception', [$this, 'browserException']);
 	}
 
 	/**
@@ -120,6 +95,61 @@ class RedBrowser extends DAV\Browser\Plugin {
 				}
 				break;
 		}
+	}
+
+	/**
+	 * @brief Prevent Exception when POST > post_max_size.
+	 *
+	 * If POST request > post_max_size $_POST will be empty and therefore an
+	 * \Sabre\DAV\Exception\NotImplemented would be thrown further down.
+	 * We prevent this by stopping the method:POST chain under this condition.
+	 *
+	 * @param RequestInterface $request
+	 * @param ResponseInterface $response
+	 * @return boolean false if POST was too big to stop method:POST chain
+	 */
+	function checkhttpPOST(RequestInterface $request, ResponseInterface $response) {
+		if (empty($_POST)) {
+			$limit = getPhpiniUploadLimits();
+			notice(sprintf(t('Nothing could get uploaded.<br>Your request exeeded the maximum allowed size of %s.'),
+					userReadableSize($limit['post_max_size'])));
+
+			// Redirect after failure
+			$response->setHeader('Location', $request->getUrl());
+			$response->setStatus(302);
+
+			// stop processing method:POST chain
+			return false;
+		}
+	}
+
+	/**
+	 * @brief Handle Exceptions to provide feedback in the GUI.
+	 *
+	 * This lets us provide a feedback in our application instead of the
+	 * SabreDAV default XML Exceptions.
+	 *
+	 * @param \Sabre\DAV\Exception $e
+	 */
+	function browserException(DAV\Exception $e) {
+		logger('Exception thrown: (HTTP status: ' . $e->getHTTPCode() . ') ' . $e->getMessage());
+		notice('Exception thrown: (HTTP status: ' . $e->getHTTPCode() . ') ' . $e->getMessage());
+
+		// Generate a response header and send it
+		$headers = $e->getHTTPHeaders($this->server);
+		$this->server->httpResponse->setStatus($e->getHTTPCode());
+		$this->server->httpResponse->setHeaders($headers);
+		// Send the response through SabreDAV (only header), body will get send
+		// through our application's default construct_page().
+		$this->server->sapi->sendResponse($this->server->httpResponse);
+
+		// construct_page() send directly to output, does not return content for
+		// a body here.
+		//$this->server->httpResponse->setBody($this->generateDirectoryIndex('/'));
+		// contains our construct_page() and outputs content.
+		$this->generateDirectoryIndex('');
+
+		killme();
 	}
 
 	/**
