@@ -1,6 +1,35 @@
 ChangeLog
 =========
 
+2.1.8 (2016-01-04)
+------------------
+
+* #729: Fixed a caching problem in the Tree object.
+* #740: Bugs in `migrate20.php` script.
+* The zip release ships with [sabre/vobject 3.4.8][vobj],
+  [sabre/http 3.0.5][http], and [sabre/event 2.0.2][evnt].
+
+
+2.1.7 (2015-09-05)
+------------------
+
+* #705: A `MOVE` request that gets prevented from deleting the source resource
+  will still remove the target resource. Now all events are triggered before
+  any destructive operations.
+* The zip release ships with [sabre/vobject 3.4.7][vobj],
+  [sabre/http 3.0.5][http], and [sabre/event 2.0.2][evnt].
+
+
+2.1.6 (2015-07-21)
+------------------
+
+* #657: Migration script would break when coming a cross an iCalendar object
+  with no UID.
+* #691: Workaround for broken Windows Phone client.
+* The zip release ships with [sabre/vobject 3.4.5][vobj],
+  [sabre/http 3.0.5][http], and [sabre/event 2.0.2][evnt].
+
+
 2.1.5 (2015-07-11)
 ------------------
 
@@ -171,6 +200,17 @@ ChangeLog
 * Added: #523 Custom CalDAV backends can now mark any calendar as read-only.
 * The zip release ships with [sabre/vobject 3.3.3][vobj],
   [sabre/http 3.0.0][http], and [sabre/event 2.0.0][evnt].
+
+
+2.0.9 (2015-09-04)
+------------------
+
+* #705: A `MOVE` request that gets prevented from deleting the source resource
+  will still remove the target resource. Now all events are triggered before
+  any destructive operations.
+* The zip release ships with [sabre/vobject 3.4.6][vobj],
+  [sabre/http 2.0.4][http], and [sabre/event 1.0.1][evnt].
+
 
 
 2.0.8 (2015-07-11)

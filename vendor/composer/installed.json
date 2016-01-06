@@ -53,6 +53,74 @@
         ]
     },
     {
+        "name": "sabre/vobject",
+        "version": "3.4.8",
+        "version_normalized": "3.4.8.0",
+        "source": {
+            "type": "git",
+            "url": "https://github.com/fruux/sabre-vobject.git",
+            "reference": "0d4f1b634cd483320f0e4530a3335fc19501e663"
+        },
+        "dist": {
+            "type": "zip",
+            "url": "https://api.github.com/repos/fruux/sabre-vobject/zipball/0d4f1b634cd483320f0e4530a3335fc19501e663",
+            "reference": "0d4f1b634cd483320f0e4530a3335fc19501e663",
+            "shasum": ""
+        },
+        "require": {
+            "ext-mbstring": "*",
+            "php": ">=5.3.1"
+        },
+        "require-dev": {
+            "phpunit/phpunit": "*",
+            "squizlabs/php_codesniffer": "*"
+        },
+        "time": "2016-01-04 19:42:01",
+        "bin": [
+            "bin/vobject",
+            "bin/generate_vcards"
+        ],
+        "type": "library",
+        "extra": {
+            "branch-alias": {
+                "dev-master": "3.2.x-dev"
+            }
+        },
+        "installation-source": "dist",
+        "autoload": {
+            "psr-4": {
+                "Sabre\\VObject\\": "lib/"
+            }
+        },
+        "notification-url": "https://packagist.org/downloads/",
+        "license": [
+            "BSD-3-Clause"
+        ],
+        "authors": [
+            {
+                "name": "Evert Pot",
+                "email": "me@evertpot.com",
+                "homepage": "http://evertpot.com/",
+                "role": "Developer"
+            },
+            {
+                "name": "Dominik Tobschall",
+                "email": "dominik@fruux.com",
+                "homepage": "http://tobschall.de/",
+                "role": "Developer"
+            }
+        ],
+        "description": "The VObject library for PHP allows you to easily parse and manipulate iCalendar and vCard objects",
+        "homepage": "http://sabre.io/vobject/",
+        "keywords": [
+            "VObject",
+            "iCalendar",
+            "jCal",
+            "jCard",
+            "vCard"
+        ]
+    },
+    {
         "name": "sabre/http",
         "version": "3.0.5",
         "version_normalized": "3.0.5.0",
@@ -106,86 +174,18 @@
         ]
     },
     {
-        "name": "sabre/vobject",
-        "version": "3.4.5",
-        "version_normalized": "3.4.5.0",
-        "source": {
-            "type": "git",
-            "url": "https://github.com/fruux/sabre-vobject.git",
-            "reference": "75bd5ee4cea8138125ead50f5a3828b708a611ae"
-        },
-        "dist": {
-            "type": "zip",
-            "url": "https://api.github.com/repos/fruux/sabre-vobject/zipball/75bd5ee4cea8138125ead50f5a3828b708a611ae",
-            "reference": "75bd5ee4cea8138125ead50f5a3828b708a611ae",
-            "shasum": ""
-        },
-        "require": {
-            "ext-mbstring": "*",
-            "php": ">=5.3.1"
-        },
-        "require-dev": {
-            "phpunit/phpunit": "*",
-            "squizlabs/php_codesniffer": "*"
-        },
-        "time": "2015-06-02 15:44:08",
-        "bin": [
-            "bin/vobject",
-            "bin/generate_vcards"
-        ],
-        "type": "library",
-        "extra": {
-            "branch-alias": {
-                "dev-master": "3.2.x-dev"
-            }
-        },
-        "installation-source": "dist",
-        "autoload": {
-            "psr-4": {
-                "Sabre\\VObject\\": "lib/"
-            }
-        },
-        "notification-url": "https://packagist.org/downloads/",
-        "license": [
-            "BSD-3-Clause"
-        ],
-        "authors": [
-            {
-                "name": "Evert Pot",
-                "email": "me@evertpot.com",
-                "homepage": "http://evertpot.com/",
-                "role": "Developer"
-            },
-            {
-                "name": "Dominik Tobschall",
-                "email": "dominik@fruux.com",
-                "homepage": "http://tobschall.de/",
-                "role": "Developer"
-            }
-        ],
-        "description": "The VObject library for PHP allows you to easily parse and manipulate iCalendar and vCard objects",
-        "homepage": "http://sabre.io/vobject/",
-        "keywords": [
-            "VObject",
-            "iCalendar",
-            "jCal",
-            "jCard",
-            "vCard"
-        ]
-    },
-    {
         "name": "sabre/dav",
-        "version": "2.1.5",
-        "version_normalized": "2.1.5.0",
+        "version": "2.1.8",
+        "version_normalized": "2.1.8.0",
         "source": {
             "type": "git",
             "url": "https://github.com/fruux/sabre-dav.git",
-            "reference": "cab5ab4e9caa00ba12268aa5b35925dc65bd7d63"
+            "reference": "a36d10230d3a956eceaccb9aae7bf4480e9f18e7"
         },
         "dist": {
             "type": "zip",
-            "url": "https://api.github.com/repos/fruux/sabre-dav/zipball/cab5ab4e9caa00ba12268aa5b35925dc65bd7d63",
-            "reference": "cab5ab4e9caa00ba12268aa5b35925dc65bd7d63",
+            "url": "https://api.github.com/repos/fruux/sabre-dav/zipball/a36d10230d3a956eceaccb9aae7bf4480e9f18e7",
+            "reference": "a36d10230d3a956eceaccb9aae7bf4480e9f18e7",
             "shasum": ""
         },
         "require": {
@@ -212,7 +212,7 @@
             "ext-curl": "*",
             "ext-pdo": "*"
         },
-        "time": "2015-07-11 21:30:15",
+        "time": "2016-01-04 19:58:39",
         "bin": [
             "bin/sabredav",
             "bin/naturalselection"
